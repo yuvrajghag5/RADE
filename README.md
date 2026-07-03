@@ -28,49 +28,49 @@ points, shaded below.
 ```mermaid
 flowchart TD
     URL([Target URL - authorized only])
- 
+
     subgraph L1 [Layer 1 - Input and authorization]
         AUTH{{Authorization gate<br/>scope + consent check}}
     end
- 
+
     subgraph L2 [Layer 2 - Reconnaissance]
         RECON[Find injection points<br/>forms, params, headers]
     end
- 
+
     subgraph L3 [Layer 3 - Intelligence]
         SELECT[Payload selection<br/>agent picks from dataset]
     end
- 
+
     subgraph L4 [Layer 4 - Governance and safety]
         GOV{{Governance gate<br/>severity + rate limits}}
     end
- 
+
     subgraph L5 [Layer 5 - Execution]
-        EXEC[Fire payload<br/>capture response]
+        EXEC[Human review +<br/>Fire payload<br/>capture response]
     end
- 
+
     subgraph L6 [Layer 6 - Detection]
         DETECT[Analyse response<br/>vulnerable? + confidence]
     end
- 
+
     subgraph L7 [Layer 7 - Reporting and audit]
         REPORT[/Report + audit log<br/>findings, redacted/]
     end
- 
+
     URL --> AUTH
     AUTH -->|rejected| STOP([Out of scope - stop])
     AUTH -->|approved| RECON
     RECON --> SELECT
     SELECT --> GOV
-    GOV -->|held / escalated| HUMAN([Human review])
     GOV -->|approved| EXEC
     EXEC --> DETECT
     DETECT -->|loops per payload| SELECT
     DETECT --> REPORT
- 
+
     classDef gate fill:#FAEEDA,stroke:#BA7517,color:#633806;
     classDef stopnode fill:#FCEBEB,stroke:#A32D2D,color:#791F1F;
     class AUTH,GOV gate;
+    class STOP gate;
     class STOP,HUMAN stopnode;
 ```
  
