@@ -20,25 +20,71 @@ emphasis is on making that capability **responsible**.
 ---
 
 ## 1. Project architecture
-
+ 
 The system is seven layers. Data passes down through them and results come back up.
-The two **safety gates** (layers 1 and 4) are the responsible-AI control points.
-
-| # | Layer | Responsibility |
-|---|-------|----------------|
-| 1 | **Input & authorization** | Receives the target URL, checks it against an allowlist, requires explicit consent, rejects anything out of scope. The legal firewall. |
-| 2 | **Reconnaissance** | Lightly probes the authorized target to discover injection points (forms, URL parameters, headers, search boxes). |
-| 3 | **Intelligence** | The agent + payload dataset + ML model. For each injection point, decides *which* payloads to try and in what order. |
-| 4 | **Governance & safety** | The second gate. Enforces severity gating (dangerous payloads held or escalated to a human), rate limiting, and non-destructive rules. |
-| 5 | **Execution** | Sends the approved payload to the target and captures the raw response. |
-| 6 | **Detection** | Analyses the response to decide *vulnerable or not*, with a confidence score and a reason. |
-| 7 | **Reporting & audit** | Aggregates confirmed findings, redacts any personal data pulled back (GDPR), writes a human report and an immutable audit log. |
-
+The two **safety gates** (authorization and governance) are the responsible-AI control
+points, shaded below.
+ 
+```mermaid
+flowchart TD
+    URL([Target URL - authorized only])
+ 
+    subgraph L1 [Layer 1 - Input and authorization]
+        AUTH{{Authorization gate<br/>scope + consent check}}
+    end
+ 
+    subgraph L2 [Layer 2 - Reconnaissance]
+        RECON[Find injection points<br/>forms, params, headers]
+    end
+ 
+    subgraph L3 [Layer 3 - Intelligence]
+        SELECT[Payload selection<br/>agent picks from dataset]
+    end
+ 
+    subgraph L4 [Layer 4 - Governance and safety]
+        GOV{{Governance gate<br/>severity + rate limits}}
+    end
+ 
+    subgraph L5 [Layer 5 - Execution]
+        EXEC[Fire payload<br/>capture response]
+    end
+ 
+    subgraph L6 [Layer 6 - Detection]
+        DETECT[Analyse response<br/>vulnerable? + confidence]
+    end
+ 
+    subgraph L7 [Layer 7 - Reporting and audit]
+        REPORT[/Report + audit log<br/>findings, redacted/]
+    end
+ 
+    URL --> AUTH
+    AUTH -->|rejected| STOP([Out of scope - stop])
+    AUTH -->|approved| RECON
+    RECON --> SELECT
+    SELECT --> GOV
+    GOV -->|held / escalated| HUMAN([Human review])
+    GOV -->|approved| EXEC
+    EXEC --> DETECT
+    DETECT -->|loops per payload| SELECT
+    DETECT --> REPORT
+ 
+    classDef gate fill:#FAEEDA,stroke:#BA7517,color:#633806;
+    classDef stopnode fill:#FCEBEB,stroke:#A32D2D,color:#791F1F;
+    class AUTH,GOV gate;
+    class STOP,HUMAN stopnode;
+```
+ 
+**How to read it.** The two hexagonal nodes are the safety gates — every scan passes
+through both, and the governance gate fires *repeatedly* because selection → gate →
+execute → detect **loops** for every payload. The two red nodes are the exits that
+protect against harm: an out-of-scope target is rejected outright, and dangerous
+payloads are escalated to a human rather than fired automatically.
+ 
 **Where the ML model lives.** Because payloads arrive pre-labelled, the model does
 **not** classify payloads. Its job is response analysis in layer 6 — deciding whether
 a target's response indicates a real vulnerability. (An optional secondary use is
 context-matching in layer 3.) This decision is recorded in the model card.
-
+ 
 ---
 
 ## 2. Runtime data flow
