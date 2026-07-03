@@ -74,16 +74,7 @@ flowchart TD
     class STOP,HUMAN stopnode;
 ```
  
-**How to read it.** The two hexagonal nodes are the safety gates — every scan passes
-through both, and the governance gate fires *repeatedly* because selection → gate →
-execute → detect **loops** for every payload. The two red nodes are the exits that
-protect against harm: an out-of-scope target is rejected outright, and dangerous
-payloads are escalated to a human rather than fired automatically.
- 
-**Where the ML model lives.** Because payloads arrive pre-labelled, the model does
-**not** classify payloads. Its job is response analysis in layer 6 — deciding whether
-a target's response indicates a real vulnerability. (An optional secondary use is
-context-matching in layer 3.) This decision is recorded in the model card.
+
  
 ---
 
