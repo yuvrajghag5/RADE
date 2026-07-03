@@ -1,190 +1,254 @@
 # Offensive IT-Tester
 
-An AI-powered web-application vulnerability tester built for the **Responsible AI & Data Ethics** course. The system trains a classifier on a payload dataset and drives an LLM agent that tests a **sandboxed** target, with every action passing through a governance layer.
+An AI-powered, **autonomous web-application vulnerability scanner** built for the
+*Responsible AI & Data Ethics* course. It takes an **authorized target URL**, uses
+an agent to select attack payloads from a fixed, labelled dataset, fires them at the
+target through two safety gates, confirms which vulnerabilities are real, and produces
+a redacted, fully audited report.
 
-The grading emphasis is **responsibility, ethics, and safety** — not offensive capability. The architecture reflects that: the interesting engineering is the governance middleware and the scope-locking, not the attacks themselves.
+The system is deliberately **autonomous but bounded**: authorization at the front,
+safety limits during, transparency throughout, and accountability around the whole
+thing. The offensive capability is the smaller part of the project — the graded
+emphasis is on making that capability **responsible**.
+
+> **Scope & safety note.** The scanner only runs against targets on an explicit
+> allowlist, which in practice means a deliberately vulnerable app we host ourselves
+> (e.g. OWASP Juice Shop / DVWA) in an isolated environment. It is designed so it
+> *cannot* be pointed at an arbitrary third-party site. This keeps the project within
+> German law (§202a/b/c StGB), GDPR, and the EU AI Act.
 
 ---
 
-## Project status
+## 1. Project architecture
 
-| Stage | Deliverable | State |
-|-------|-------------|-------|
-| Data | Raw-repair + pandas cleaning pipeline (`preprocess.py`) | Done |
-| Data | Cleaned dataset (`payloads_clean.csv` / `.jsonl`, 455 rows) | Done |
-| Analysis | Exploratory data analysis (`01_eda.ipynb`) | Done |
-| Model | Feature engineering + classifier (`02_model_dev.ipynb`) | Next |
-| Agent | Orchestrator, tools, governance middleware | Planned |
-| Governance | Model card, risk assessment, datasheet, DPIA | Planned |
+The system is seven layers. Data passes down through them and results come back up.
+The two **safety gates** (layers 1 and 4) are the responsible-AI control points.
+
+| # | Layer | Responsibility |
+|---|-------|----------------|
+| 1 | **Input & authorization** | Receives the target URL, checks it against an allowlist, requires explicit consent, rejects anything out of scope. The legal firewall. |
+| 2 | **Reconnaissance** | Lightly probes the authorized target to discover injection points (forms, URL parameters, headers, search boxes). |
+| 3 | **Intelligence** | The agent + payload dataset + ML model. For each injection point, decides *which* payloads to try and in what order. |
+| 4 | **Governance & safety** | The second gate. Enforces severity gating (dangerous payloads held or escalated to a human), rate limiting, and non-destructive rules. |
+| 5 | **Execution** | Sends the approved payload to the target and captures the raw response. |
+| 6 | **Detection** | Analyses the response to decide *vulnerable or not*, with a confidence score and a reason. |
+| 7 | **Reporting & audit** | Aggregates confirmed findings, redacts any personal data pulled back (GDPR), writes a human report and an immutable audit log. |
+
+**Where the ML model lives.** Because payloads arrive pre-labelled, the model does
+**not** classify payloads. Its job is response analysis in layer 6 — deciding whether
+a target's response indicates a real vulnerability. (An optional secondary use is
+context-matching in layer 3.) This decision is recorded in the model card.
 
 ---
 
-## Folder architecture
+## 2. Runtime data flow
+
+One journey, from URL to report:
 
 ```
-offensive-it-tester/            (project root: RADE)
-├── data/
-│   ├── raw/                     # original payload file (read-only input)
-│   ├── processed/               # payloads_clean.csv / .jsonl (pipeline output)
-│   └── schema.md                # field + class documentation
-├── notebooks/
-│   ├── 01_eda.ipynb             # exploratory data analysis        [done]
-│   ├── 02_model_dev.ipynb       # classifier training              [next]
-│   └── 03_fairness_eval.ipynb   # class balance / fairness
-├── preprocess/
-│   └── preprocess.py            # two-stage cleaning pipeline       [done]
-├── src/
-│   ├── model/
-│   │   ├── train.py
-│   │   ├── classifier.py        # exposed via the `classify` tool
-│   │   ├── evaluate.py
-│   │   └── explain.py           # feature attribution / SHAP
-│   ├── agent/
-│   │   ├── orchestrator.py      # reason -> act -> observe loop
-│   │   ├── registry.py          # tool schemas + registration
-│   │   ├── state.py             # per-run context / memory
-│   │   └── tools/               # one module per tool (see registry below)
-│   ├── governance/
-│   │   ├── middleware.py        # wraps every tool call
-│   │   ├── guardrails.py        # allowlist, rate limit, kill-switch
-│   │   ├── policy.py            # check_policy logic
-│   │   ├── consent.py           # authorization-token check
-│   │   └── audit.py             # log_event, immutable log
-│   ├── sandbox/
-│   │   ├── docker-compose.yml   # vulnerable target(s)
-│   │   └── targets.md           # allowlist definition
-│   └── reporting/
-│       ├── report_builder.py
-│       └── templates/
-├── config/
-│   ├── policy.yaml              # scope, allowlist, rate limits
-│   ├── model_config.yaml
-│   └── logging.yaml
-├── governance/                  # graded documentation artifacts
-│   ├── model_card.md
-│   ├── risk_assessment.md
-│   ├── datasheet.md
-│   └── dpia.md                  # data protection impact (GDPR)
-├── reports/                     # generated run outputs
-├── tests/
-│   ├── test_data.py
-│   ├── test_model.py
-│   ├── test_tools.py
-│   └── test_guardrails.py       # proves the kill-switch actually blocks
+        Target URL (authorized only)
+                  │
+                  ▼
+        ┌───────────────────────┐
+        │  AUTHORIZATION GATE    │  ◄── scope + consent check; rejects out-of-scope
+        └───────────────────────┘
+                  │
+                  ▼
+        ┌───────────────────────┐
+        │   Reconnaissance       │  ── find injection points
+        └───────────────────────┘
+                  │
+                  ▼
+        ┌───────────────────────┐  ◄─────────────┐
+        │   Payload selection    │  ── agent picks from dataset
+        └───────────────────────┘                │
+                  │                               │
+                  ▼                               │  loops
+        ┌───────────────────────┐                │  per
+        │   GOVERNANCE GATE      │  ── severity + │  payload
+        │                        │     rate limits│
+        └───────────────────────┘                │
+                  │                               │
+                  ▼                               │
+        ┌───────────────────────┐                │
+        │   Execute & detect     │  ── fire, read, confirm
+        └───────────────────────┘  ───────────────┘
+                  │
+                  ▼
+        ┌───────────────────────┐
+        │   Report               │  ── findings, redacted + logged
+        └───────────────────────┘
+```
+
+**In plain language.** You hand the tool an authorized URL. The **authorization gate**
+asks "am I allowed to touch this?" — if not, everything stops. If approved,
+**reconnaissance** finds the doors (input fields, parameters). The **agent** then picks
+suitable known payloads for each door from the dataset — it never invents new ones. Before
+any payload is fired, the **governance gate** asks "is it safe to send *this* one right
+now?" — destructive payloads are held or escalated, and the request rate is throttled.
+Approved payloads are **fired**, the response is read, and **detection** decides whether a
+real vulnerability triggered. That select → gate → fire → check cycle **loops** across every
+injection point and payload until the target is fully tested. Finally, the **report** stage
+collects confirmed findings, strips out any real personal data, and writes both a
+human-readable report and a tamper-evident audit log.
+
+The safety gate can fail in **two directions**, and the risk assessment names both:
+*too permissive* (lets through a destructive payload, DoSes the target, wanders out of
+scope, or leaks personal data into logs) or *too restrictive* (blocks so much that a
+"no vulnerabilities found" result is really a broken gate, not a secure target). Every
+gate block is logged **with a reason** so a genuine clean result can always be told apart
+from a gate that stopped everything.
+
+---
+
+## 3. Folder architecture (with tools)
+
+Folders map one-to-one onto the seven layers. `docs/` maps onto the graded deliverables.
+
+```
+offensive-it-tester/
+├── README.md
 ├── requirements.txt
-├── .env.example
-└── README.md
+├── main.py                      # entry point: takes a URL, runs the pipeline
+│
+├── config/                      # safety rules stored as DATA, not buried in code
+│   ├── config.yaml              # rate limits, thresholds, timeouts
+│   ├── target_allowlist.yaml    # authorized targets — the scope firewall
+│   └── severity_policy.yaml     # which severities / patterns need holding or escalation
+│                                #   tools: PyYAML
+│
+├── data/
+│   ├── raw/                     # original Kaggle dataset, untouched
+│   ├── cleaned/                 # cleaned payloads (payloads_clean.jsonl, 455 rows)
+│   └── processed/               # bucketed context + trimmed duplicates (post-analysis)
+│
+├── notebooks/
+│   └── analysis.ipynb           # exploratory data analysis (7 steps)
+│                                #   tools: pandas, re, difflib
+│
+├── src/
+│   ├── authorization/           # layer 1 — scope + consent checks
+│   │                            #   tools: PyYAML, urllib/tldextract (domain parsing)
+│   ├── recon/                   # layer 2 — injection-point discovery
+│   │                            #   tools: requests / httpx, BeautifulSoup (bs4)
+│   ├── intelligence/            # layer 3 — agent + payload selection + ML
+│   │                            #   tools: pandas, scikit-learn
+│   ├── governance/              # layer 4 — safety gates, severity, rate limiting
+│   │                            #   tools: PyYAML, re, custom rule engine
+│   ├── execution/               # layer 5 — fire payloads, capture responses
+│   │                            #   tools: requests / httpx
+│   ├── detection/               # layer 6 — response analysis, confirm vulns
+│   │                            #   tools: scikit-learn, re
+│   ├── reporting/               # layer 7 — report generation + redaction
+│   │                            #   tools: Jinja2 (templates), re (PII redaction)
+│   └── audit/                   # cross-cutting — immutable run logs
+│                                #   tools: Python logging / structured JSON logs
+│
+├── models/
+│   ├── classifier.pkl           # trained response-analysis model
+│   └── model_card.md            # what it does, limitations, the benign-class gap
+│
+├── docs/                        # graded deliverables
+│   ├── risk_assessment.md       # threat → likelihood → impact → mitigation
+│   ├── fairness_evaluation.md   # detection coverage across classes
+│   ├── explainability.md        # why each payload was fired / flagged
+│   └── regulatory_mapping.md    # EU AI Act, GDPR, StGB, OWASP, ISO 42001, NIST AI RMF
+│
+├── reports/                     # generated scan outputs (gitignored)
+│
+└── tests/                       # pytest — one test module per src/ layer
+                                 #   tools: pytest
 ```
 
-The split between `src/governance/` (enforcement code) and top-level `governance/` (documentation) is deliberate: one is the mechanism, the other is the evidence. Both are graded.
+Two deliberate choices: `config/` holds the safety rules as readable data so an examiner
+can open `target_allowlist.yaml` and see the scope firewall at a glance; and `audit/` is
+separate from `reporting/` because reports are for the user while audit logs are the
+tamper-evident record of what the agent actually did.
+
+**Core dependencies:** `pandas`, `scikit-learn`, `requests`/`httpx`, `beautifulsoup4`,
+`PyYAML`, `Jinja2`, `pytest`.
 
 ---
 
-## System architecture
+## 4. Data analysis findings
 
-The agent is **LLM-orchestrated** with a ReAct-style loop (reason -> pick a tool -> act -> observe). The classifier is one tool among several, not the controller. The core safety property is that **every state-changing tool call is wrapped by a governance middleware**: a policy pre-flight before the call and an immutable audit record after it.
+Dataset: `payloads_clean.jsonl`, **455 rows**. Fields: `id`, `attack_class`, `payload`,
+`type`, `severity`, `context`, `description`, `example`.
 
-```
-              Agent orchestrator  (reason -> act -> observe)
-                        |
-                        v
-              Governance middleware   check_policy (pre-flight) + log_event (audit)
-                        |
-                        v
-                  Tool registry  ->  Payload dataset | ML classifier | Sandbox target
-```
+### Correction applied
+The class distribution was initially run on the `type` column, which mixes whole classes
+(`CSRF`, `Command Injection`, `SSRF`) with sub-techniques of SQLi and XSS (`tautology`,
+`union`, `reflected`, `stored`, …). The correct label is **`attack_class`**. Grouped
+properly, the arsenal is well balanced:
 
-The single most important design choice: the only tool that touches the live target is `dispatch_payload`. All risk funnels through one guarded path, so the safety of the whole system reduces to one testable question — *can an out-of-scope or unauthorized `dispatch_payload` ever execute?* — which `tests/test_guardrails.py` answers.
+| Attack class | Count | Share |
+|---|---|---|
+| XSS (reflected + stored) | 100 | 22.0% |
+| CSRF | 95 | 20.9% |
+| Command Injection | 88 | 19.3% |
+| SQLi (6 sub-types) | 87 | 19.1% |
+| SSRF | 85 | 18.7% |
 
-### Runtime data flow
+The `type` column is kept only as a *within-SQLi / within-XSS* sub-analysis (e.g. SQLi
+leans heavily on blind/time-based; only 4 `error-based` and 9 `union` payloads).
 
-```mermaid
-flowchart TD
-    A[Authorize & scope check] --> B[Recon target]
-    B --> C[Select payloads]
-    D[(Payload dataset)] --> C
-    C --> E[Classify & prioritize]
-    F[(ML classifier)] --> E
-    E --> G[Policy pre-flight gate]
-    G --> H[Dispatch to sandbox]
-    H --> I[Analyze response]
-    I --> J[Risk score, explain & report]
-```
+### Findings by analysis
 
-`log_event` fires at every step, not just the governance gates — it is the audit trail that makes a run reproducible and accountable.
+1. **Class distribution.** Balanced across the five real classes (~19–22% each). The
+   original "under-armed classes" warning was an artifact of the wrong column. **Scope
+   note:** the dataset has **five** classes, not the four in the brief — **CSRF is present**
+   and was not planned for; decide whether it is in scope.
 
----
+2. **Severity distribution.** high 53.2%, medium 30.3%, critical 13.8%, low 2.6%.
+   **67% (305 payloads) are high-or-critical**, so the governance gate fires on most
+   payloads, not occasionally. Critical payloads cluster in **SSRF (21), Command Injection
+   (19), CSRF (12), stacked-query SQLi (11)**. Blind SQLi sub-types are all labelled
+   `medium`, arguably too low for attacks that can hang a server.
 
-## Tool registry
+3. **Context analysis.** The weak spot. **230 distinct free-text context values**, 221 of
+   them with fewer than 5 payloads, with heavy overlap in meaning ("User input field",
+   "User input", "Search input", "Search field" are the same door). **Context cannot drive
+   selection until it is normalised into a small set of injection-point buckets.** This is
+   the highest-priority data-prep task.
 
-Ten tools. Eight are worker tools the orchestrator chooses; two are governance tools the middleware invokes automatically around every call.
+4. **Coverage matrix.** Blocked on (3). Because context has 230 values, the class × context
+   matrix is huge and mostly empty, making the "blind spot" count meaningless. Rebuild it
+   *after* bucketing context; it then becomes the honest coverage map for performance and
+   responsibility.
 
-| Tool | Purpose | Governance gate |
-|------|---------|-----------------|
-| `profile_target` | Recon the sandbox, enumerate input surfaces & context | Target must be in allowlist |
-| `select_payloads` | Retrieve dataset payloads by class + context | Read-only |
-| `classify` | Predict class + severity (the trained model) | Read-only |
-| `dispatch_payload` | Send one payload to the target, capture response | **Allowlist + rate limit + cap + kill-switch** |
-| `analyze_response` | Decide success, extract evidence | Logged |
-| `score_risk` | Combine severity + evidence into a CVSS-style rating | Logged |
-| `explain` | Feature attribution / rationale for a decision | Logged |
-| `build_report` | Assemble validated findings into a report | Logged |
-| `check_policy` | Pre-flight: scope, authz, consent, rate limits | *(middleware)* |
-| `log_event` | Append immutable audit record of every call | *(middleware)* |
+5. **Destructive-payload detection.** **64 destructive payloads found; 30 of them are NOT
+   labelled high/critical** (e.g. `ftp://127.0.0.1/`, `smtp://127.0.0.1:25` sitting at
+   `medium`). Key responsibility finding: **the gate cannot rely on severity labels alone
+   and must also pattern-scan the payload text.** Caveat: the `ssrf_metadata` pattern
+   currently flags ordinary `127.0.0.1`/`localhost` SSRF probes as destructive — split
+   "reaches internal host" from "destroys data" so the gate isn't over-broad.
 
----
+6. **Duplicate detection.** Only **1 exact duplicate** (a casing difference), but **155
+   near-duplicate pairs** — many XSS payloads differing only by a counter, and near-identical
+   CSRF forms. The *effective* arsenal is smaller than 455; trimming saves request budget
+   and reduces DoS risk.
 
-## Dataset & data analysis findings
+7. **Data quality.** Clean where it matters: **zero missing `context` or `severity`**, zero
+   unusable rows. Only `example` is sparse (248 missing), and it drives no logic.
+   **Known limitation:** the dataset is **attack-only, with no benign class**, so the
+   detection layer has no "normal response" baseline to calibrate against — documented in
+   the model card and risk assessment.
 
-**Source:** web-application payloads, provided as a file named `.jsonl` that is actually a pretty-printed JSON array.
-
-**Cleaning was two-stage** because the raw file would not parse at all:
-
-1. *Raw-text repair* (before pandas): removed 45 non-breaking spaces (U+00A0) from a copy-paste, fixed 1 missing comma between records, and escaped 1 invalid `\x` backslash sequence. CRLF endings left as-is.
-2. *Pandas cleaning*: derived `attack_class` from the `id` prefix, unified the inconsistent `example_query` / `example_usage` fields into one `example` column, stripped whitespace, dropped 1 empty payload, and removed 44 duplicate payloads (with **zero label conflicts**, so deduplication was safe).
-
-**Result: 500 raw records -> 455 clean records.**
-
-### Key findings
-
-- **Five balanced classes**, not the four originally assumed: `xss` (100), `csrf` (95), `cmdi` (88), `sqli` (87), `ssrf` (85). The `csrf` class was not in the original brief — **confirm scope with the professor**.
-- **No benign class.** The dataset is entirely attack payloads, so a classifier trained on it alone cannot label traffic as *safe*. This is the central scope gap and must be documented in the model card and risk assessment.
-- **Severity is imbalanced** (skewed toward high/medium; critical and low are minorities). Relevant to risk scoring and the fairness evaluation — exact per-class figures are in `01_eda.ipynb` step 3.
-- **Rich metadata** (`type`, `context`, `severity`) supports agent selectivity: `select_payloads` filters on `context`, and `type` gives sub-type granularity within each class.
-- **Label-leakage risk is real.** The label is derived from `id`, and `description` / `example` frequently name the attack outright. Only `payload` (and features engineered from it) is a safe model input. See `01_eda.ipynb` step 8.
-
-### Cleaned schema
-
-| Column | Notes |
-|--------|-------|
-| `id` | e.g. `sqli-001`. **Do not use as a feature** (encodes the label). |
-| `attack_class` | Target label, derived from `id`. |
-| `payload` | The attack string. **Primary feature source.** |
-| `type` | Sub-type within a class (e.g. `tautology`, `blind-time`). |
-| `severity` | Ordered: low < medium < high < critical. |
-| `context` | Where the payload applies (e.g. `Login form`). |
-| `description` | Human documentation. Leaks the label — not a feature. |
-| `example` | Merged example query/usage; null for many rows. |
+### Immediate next steps (in order)
+1. Redo the distribution on `attack_class` (quick fix).
+2. **Normalise the 230 `context` strings into a handful of injection-point buckets** — this
+   single fix unblocks payload selection *and* the coverage matrix.
+3. Turn the 64 destructive payloads (minus the over-broad localhost flags) into
+   `severity_policy.yaml` gate rules, since 30 of them prove labels can't be trusted.
+4. Decide CSRF scope and record the benign-class gap in the model card.
 
 ---
 
-## How to run
+## 5. Regulatory & ethics frameworks
 
-```bash
-# 1. setup
-python -m venv .venv
-.venv\Scripts\activate            # Windows;  source .venv/bin/activate on macOS/Linux
-pip install -r requirements.txt
-
-# 2. put the raw file at data/raw/, then clean it
-python -m preprocess.preprocess    # writes data/processed/payloads_clean.{csv,jsonl}
-
-# 3. run the exploratory analysis
-jupyter lab notebooks/01_eda.ipynb
-```
-
----
-
-## Responsible-AI framing
-
-The project is assessed against the EU AI Act, GDPR (data minimisation), German computer-crime law, OWASP, ISO/IEC 42001, the NIST AI RMF, and the course's Value-Based Engineering and IBM five-pillars frameworks. The design decisions above map to those directly: scope-locking and the kill-switch address legality and safety; the audit log addresses accountability and traceability; the leakage audit and fairness evaluation address the data-ethics dimension; and the model card documents intended use and known limitations (above all, the missing benign class).
+The project is mapped against: **EU AI Act** (including the May 2026 Digital Omnibus
+changes), **GDPR** (data minimisation, PII redaction), **German criminal law**
+(§202a/b/c and §303a/b StGB — unauthorized access and data alteration), **OWASP**,
+**ISO/IEC 42001**, and **NIST AI RMF**, plus the course frameworks (Value-Based
+Engineering, IBM's five pillars of responsible AI). Full mapping in
+`docs/regulatory_mapping.md`.
