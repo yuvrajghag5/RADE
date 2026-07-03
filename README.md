@@ -269,16 +269,6 @@ leans heavily on blind/time-based; only 4 `error-based` and 9 `union` payloads).
    currently flags ordinary `127.0.0.1`/`localhost` SSRF probes as destructive — split
    "reaches internal host" from "destroys data" so the gate isn't over-broad.
 
-6. **Duplicate detection.** Only **1 exact duplicate** (a casing difference), but **155
-   near-duplicate pairs** — many XSS payloads differing only by a counter, and near-identical
-   CSRF forms. The *effective* arsenal is smaller than 455; trimming saves request budget
-   and reduces DoS risk.
-
-7. **Data quality.** Clean where it matters: **zero missing `context` or `severity`**, zero
-   unusable rows. Only `example` is sparse (248 missing), and it drives no logic.
-   **Known limitation:** the dataset is **attack-only, with no benign class**, so the
-   detection layer has no "normal response" baseline to calibrate against — documented in
-   the model card and risk assessment.
 
 ### Immediate next steps (in order)
 1. Redo the distribution on `attack_class` (quick fix).
