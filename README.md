@@ -23,7 +23,8 @@ and accountability around the whole thing.
 | Data engineering (repair → clean → benign corpus → final dataset) | ✅ **done** |
 | Exploratory analysis (`preprocess/analysis.ipynb`) | ✅ **done** |
 | Baseline model + fairness + risk (`models/baseline.ipynb`) | ✅ **done** |
-| Detection oracles, safety gates, execution loop, reporting | ◻ **planned** (design below) |
+| **Layers 1–3: authorization → recon → payload selection** (`main.py`) | ✅ **done** |
+| Layer 4–7: governance gate, execution, detection oracles, reporting | ◻ **planned** (design below) |
 
 This README documents both what exists today and the target design it plugs into.
 
@@ -120,9 +121,12 @@ RADE/
 ├── requirements.txt
 ├── LICENSE
 │
-├── config/                        # ✅ paths & (planned) safety rules as DATA
+├── main.py                        # ✅ pipeline driver: runs Layers 1-3, prints selected payloads
+│
+├── config/                        # ✅ paths + safety rules as DATA
 │   ├── paths.py                   #    canonical project paths (ROOT/DATA/RAW_DIR/CLEAN/PROCESSED)
-│   └── __init__.py
+│   ├── target_allowlist.yaml      #    the scope firewall — which hosts may be scanned (sandbox only)
+│   └── targets/dvwa.yaml          #    DVWA sandbox injection-point profile (recon input)
 │
 ├── data/
 │   ├── raw/                       # ✅ untouched sources
@@ -147,10 +151,14 @@ RADE/
 │   ├── clf_binary.pkl             #    attack-vs-benign detector
 │   └── clf_attack_class.pkl       #    5-way attack_class router
 │
-└── src/                           # ◻ planned — the live scanner (maps onto layers 1-7)
-    ├── authorization/  recon/  intelligence/  governance/
-    ├── execution/  detection/  reporting/  audit/
-    └── main.py                    #    entry point: URL -> pipeline -> report
+└── src/                           # the scanner (maps onto layers 1-7)
+    ├── authorization/authorize.py # ✅ L1 — allowlist / scope firewall
+    ├── recon/recon.py             # ✅ L2 — injection-point discovery (profile-based)
+    ├── intelligence/select.py     # ✅ L3 — payload selection from the arsenal
+    ├── governance/                # ◻ L4 — severity / destructive holds, rate limits
+    ├── execution/                 # ◻ L5 — fire payloads, capture responses
+    ├── detection/                 # ◻ L6 — the six confirm() oracles
+    └── reporting/  audit/         # ◻ L7 — report + tamper-evident log
 ```
 
 **Two deliberate choices carried from the design:** `config/` will hold safety rules as
@@ -221,6 +229,10 @@ python -m preprocess.build_dataset
 
 # 2. train + evaluate + save the baseline models, then read fairness & risk
 #    open models/baseline.ipynb and run all cells (use the .venv kernel)
+
+# 3. run the scanner pipeline (Layers 1-3) — prints the payloads it would fire
+python main.py                         # default sandbox target (127.0.0.1:8080)
+python main.py http://example.com      # shows the authorization gate rejecting
 ```
 
 The notebook adds the project root to `sys.path` automatically, so it runs whether the kernel

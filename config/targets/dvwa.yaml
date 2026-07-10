@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+# SANDBOX TARGET PROFILE — DVWA (Damn Vulnerable Web Application).
+#
+# In a full build, Layer 2 (recon) would discover these injection points live
+# by crawling forms/params. Until the live crawler is wired up, they are
+# declared here as DATA so the pipeline runs offline against the known layout
+# of the DVWA sandbox.
+#
+# Each injection point records:
+#   param   – the input to inject into
+#   bucket  – the normalised injection-point bucket (matches dataset context_bucket)
+#   classes – which attack classes are worth trying at this point
+# ---------------------------------------------------------------------------
+base_url: "http://127.0.0.1:8080"
+
+injection_points:
+  - name: "sqli_id"
+    url: "/vulnerabilities/sqli/"
+    method: "GET"
+    param: "id"
+    bucket: "url_param"
+    classes: ["sqli"]
+
+  - name: "xss_reflected"
+    url: "/vulnerabilities/xss_r/"
+    method: "GET"
+    param: "name"
+    bucket: "search_field"
+    classes: ["xss", "sqli"]
+
+  - name: "xss_stored"
+    url: "/vulnerabilities/xss_s/"
+    method: "POST"
+    param: "mtxMessage"
+    bucket: "comment_field"
+    classes: ["xss", "csrf"]
+
+  - name: "command_exec"
+    url: "/vulnerabilities/exec/"
+    method: "POST"
+    param: "ip"
+    bucket: "command_exec"
+    classes: ["cmdi"]
+
+  - name: "csrf_password"
+    url: "/vulnerabilities/csrf/"
+    method: "GET"
+    param: "password_new"
+    bucket: "account_settings"
+    classes: ["csrf"]
+
+  - name: "file_inclusion"
+    url: "/vulnerabilities/fi/"
+    method: "GET"
+    param: "page"
+    bucket: "ssrf_target"
+    classes: ["ssrf"]

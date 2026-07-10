@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# TARGET ALLOWLIST — the scope firewall (Layer 1).
+# Only hosts listed here may ever be scanned. This file IS the central
+# lawfulness control (README §7 / StGB §202a): the tool can only attack a
+# self-owned sandbox, never an arbitrary third-party site.
+# ---------------------------------------------------------------------------
+
+# Extra hard guard: reject anything that is not a loopback address, even if
+# someone adds a public host below by mistake.
+require_loopback: true
+
+allowed:
+  - host: "127.0.0.1"
+    ports: [8080, 80, 3000]
+    label: "Local DVWA sandbox"
+    profile: "dvwa"          # which injection-point profile recon should use
+  - host: "localhost"
+    ports: [8080, 80, 3000]
+    label: "Local sandbox (alias)"
+    profile: "dvwa"
