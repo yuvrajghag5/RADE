@@ -1,20 +1,26 @@
 # ── Offensive IT-Tester — dependencies ───────────────────────────────
 # Pinned to lower bounds; tested on Python 3.11+.
- 
-# Layer 1 (authorization) + config
-PyYAML>=6.0
- 
-# Layer 2 (reconnaissance)
-requests>=2.31
-beautifulsoup4>=4.12
- 
-# Notebook + baseline model (Layer 3 intelligence / analysis)
+
+# Data pipeline (preprocess/) + baseline model (models/)
 pandas>=2.0
+numpy>=1.26
 scikit-learn>=1.3
 matplotlib>=3.7
-notebook>=7.0          # to run notebooks/analysis.ipynb
-nbformat>=5.9          # notebook build/execution tooling
- 
-# Tests
+joblib>=1.3            # persist trained models -> models/*.pkl
+
+# Config + Layer 1 (authorization) + Layer 2 recon profiles
+PyYAML>=6.0
+
+# Layer 2 (reconnaissance) — live crawler
+#   (profile-based recon runs without these; needed once live crawling is wired up)
+requests>=2.31
+beautifulsoup4>=4.12
+
+# Notebooks — preprocess/analysis.ipynb and models/baseline.ipynb
+notebook>=7.0
+ipykernel>=6.25        # kernel that executes the notebook cells
+nbformat>=5.9          # read/write notebooks
+nbconvert>=7.0         # execute notebooks programmatically
+
+# Tests (planned, tests/)
 pytest>=8.0
- 

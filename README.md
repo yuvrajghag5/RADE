@@ -216,12 +216,48 @@ payloads) — treat them as an upper bound. The value is in the **5 false negati
 with exotic schemes like `tel:`/`magnet:`, short Windows commands, and encoded payloads) — the
 model breaks exactly where an attacker would push. It is kept **advisory, not authoritative**:
 the live loop routes by the dataset `type`, so a model error can never silently drop a real
-payload. The notebook ends with the full **fairness evaluation** (§7) and **risk assessment**
-(§8, NIST Map → Measure → Manage).
+payload. The notebook ends with the model's own **fairness evaluation** and **risk
+assessment** (NIST Map → Measure → Manage).
 
 ---
 
-## 6. Reproduce
+## 6. The scanner pipeline (Layers 1–3)
+
+`main.py` runs the first three layers and **stops before firing** — it prints the payloads
+the agent *would* send at each injection point. No request is made; it is safe to run.
+
+```bash
+python main.py                    # default sandbox target (127.0.0.1:8080)
+python main.py http://example.com # authorization gate REJECTS (out of scope)
+```
+
+**What each layer does**
+1. **Authorization** — approves the URL only if it's an allowlisted **loopback** sandbox
+   host; `example.com` and wrong ports are rejected with a reason (the scope firewall).
+2. **Recon** — reads the DVWA sandbox profile (`config/targets/dvwa.yaml`) and returns the
+   injection points (live crawling is a later add-on).
+3. **Selection** — picks payloads from `dataset_final` per injection point (by attack class
+   + context bucket, ranked by severity), tagging each with the `oracle` that will verify it.
+
+**Sample output** (trimmed):
+```
+[LAYER 3] PAYLOAD SELECTION
+  ▶ command_exec  (POST ip, bucket=command_exec)  → 3 payloads
+      [cmdinj-017] cmdi/Command Injection critical oracle=marker_reflection '| env'
+  ▶ file_inclusion  (GET page, bucket=ssrf_target)  → 3 payloads
+      [ssrf-003 ] ssrf/SSRF            critical oracle=out_of_band '169.254.169.254/latest/meta-data/'
+SELECTED 23 payloads across 6 injection points  by class {sqli:6, xss:5, csrf:6, cmdi:3, ssrf:3}
+```
+
+**Responsibility analysis of this pipeline** — the selector currently fires only ~5% of the
+arsenal and skips whole SQLi techniques, a real coverage blind spot. Documented with numbers
+in [`docs/fairness_evaluation.md`](docs/fairness_evaluation.md) and
+[`docs/risk_assessment.md`](docs/risk_assessment.md). (The baseline *model's* fairness/risk
+is separate, inside `models/baseline.ipynb`.)
+
+---
+
+## 7. Reproduce
 
 ```bash
 # 1. rebuild the final dataset (writes to data/cleaned and data/processed)
@@ -244,7 +280,7 @@ starts in `models/` or the repo root.
 
 ---
 
-## 7. Regulatory & ethics frameworks
+## 8. Regulatory & ethics frameworks
 
 | Framework | Relevance |
 |---|---|
@@ -256,9 +292,12 @@ starts in `models/` or the repo root.
 
 ---
 
-## 8. Roadmap
-1. **Adversarial eval set** (URL-encode / case-swap / comment-insert) to *measure* the evasion
-   risk instead of only naming it.
-2. **Detection oracles** (`src/detection/`) — implement the six `confirm()` strategies against DVWA.
-3. **Safety gates** (`src/authorization/`, `src/governance/`) — allowlist + severity/destructive holds as YAML data.
-4. **Execution loop + reporting + audit** — wire layers 5–7 into `main.py`.
+## 9. Roadmap
+1. **Fairer selection** — stratify by technique + raise `k_per_class` so `union` /
+   `error-based` / `stacked-queries` SQLi stop being skipped (fairness §3).
+2. **Governance gate (Layer 4)** — hold `is_destructive`/critical payloads for review and
+   throttle rate, as YAML rules; **required before execution is enabled**.
+3. **Live recon** — wire the requests + BeautifulSoup crawler as primary, profile as fallback.
+4. **Execution + detection (Layers 5–6)** — fire payloads at DVWA and implement the six
+   `confirm()` oracles; add an adversarial eval set to measure evasion.
+5. **Reporting + audit (Layer 7)** — findings report + tamper-evident log.
