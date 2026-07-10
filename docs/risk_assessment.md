@@ -13,15 +13,16 @@ serious risks below are about *what happens when execution is added* and about *
 |---|---|---|---|---|
 | P1 | **Scope escape** — scanning a host that isn't ours | Low | **Critical** (StGB §202a) | mitigated by `require_loopback` + allowlist + reject-by-default |
 | P2 | **Recon blind spots** — profile-based recon misses real injection points | High | Medium | current recon reads a declared DVWA profile; a missed point = untested surface |
-| P3 | **Selection coverage gap** — most of the arsenal is never fired | High | High | only 22/455 (~5%) selected; **union / error-based / stacked-queries SQLi never chosen** (see fairness §2) → false "not vulnerable" |
+| P3 | **Selection coverage gap** — techniques never fired → false "not vulnerable" | ~~High~~ **Reduced** | High | **mitigated:** selection now **stratifies by `type`**, so SQLi technique coverage went 3/6 → 5/6 (`union`/`error-based` now fired). Residual: `stacked-queries` unreachable — reclassified as a recon gap (P2), not selection bias (fairness §1) |
 | P4 | **Destructive payload reaches execution** | Medium | **High** | selection does **not** exclude destructive payloads — 0 were selected here only *incidentally* (bucket mismatch), not by design |
 | P5 | **Over-trust** — treating "selected" as "vulnerable" | Medium | Medium | selection ≠ confirmation; only the Layer-6 oracle proves a hit |
 
 ## MEASURE — how each is checked
 - **P1:** authorization tested on out-of-scope inputs — `http://example.com` → rejected
   (not loopback); `127.0.0.1:9999` → rejected (not on allowlist). Reject-by-default verified.
-- **P3:** coverage = unique-selected / available per class (3.4–6.9%); techniques-selected
-  vs available (3 of 6 SQLi techniques = 0).
+- **P3:** coverage = unique-selected / available per class; techniques-selected vs available.
+  After the stratify-by-`type` fix: **5 of 6 SQLi techniques** selected (was 3), the last one
+  unreachable from the current injection points.
 - **P4:** count of `is_destructive` payloads that pass selection (currently 0, but **not
   guaranteed** — must be enforced downstream).
 
@@ -31,8 +32,9 @@ serious risks below are about *what happens when execution is added* and about *
   lawfulness control.
 - **P2** wire the live crawler (requests + BeautifulSoup) as the primary recon, keeping the
   profile only as a fallback; log every discovered vs profiled point.
-- **P3** stratify selection by `type` and raise `k_per_class` so every technique gets a slot
-  (see fairness §3) — turn coverage into a reported metric per scan.
+- **P3** **done** — selection stratifies by `type` (`k_per_type=2`), so every *reachable*
+  technique gets a slot (fairness §3); coverage is now printed per scan by `main.py`. Residual
+  `stacked-queries` gap rolls up into **P2** (recon must expose a `form_field` SQLi point).
 - **P4** **do not enable execution before Layer 4 (governance gate)** — the gate must hold
   every `is_destructive`/critical payload for human review *before* firing. Until then the
   pipeline is intentionally selection-only.

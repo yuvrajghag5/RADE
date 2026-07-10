@@ -237,21 +237,26 @@ python main.py http://example.com # authorization gate REJECTS (out of scope)
 2. **Recon** — reads the DVWA sandbox profile (`config/targets/dvwa.yaml`) and returns the
    injection points (live crawling is a later add-on).
 3. **Selection** — picks payloads from `dataset_final` per injection point (by attack class
-   + context bucket, ranked by severity), tagging each with the `oracle` that will verify it.
+   + context bucket), **stratified by technique**: it groups candidates by `type` and takes
+   the best `k_per_type` (=2) of *every* technique, so no technique is skipped. Each is tagged
+   with the `oracle` that will verify it.
 
 **Sample output** (trimmed):
 ```
 [LAYER 3] PAYLOAD SELECTION
-  ▶ command_exec  (POST ip, bucket=command_exec)  → 3 payloads
-      [cmdinj-017] cmdi/Command Injection critical oracle=marker_reflection '| env'
-  ▶ file_inclusion  (GET page, bucket=ssrf_target)  → 3 payloads
-      [ssrf-003 ] ssrf/SSRF            critical oracle=out_of_band '169.254.169.254/latest/meta-data/'
-SELECTED 23 payloads across 6 injection points  by class {sqli:6, xss:5, csrf:6, cmdi:3, ssrf:3}
+  ▶ sqli_id  (GET id, bucket=url_param)  → 3 payloads
+      [sqli-016 ] sqli/blind-time    high  oracle=timing          "' OR SLEEP(5)--"
+      [sqli-004 ] sqli/error-based   high  oracle=error_signature "' AND 1=CONVERT(int,@@version)--"
+SELECTED 25 payloads across 6 injection points  by class {sqli:11, xss:6, csrf:4, cmdi:2, ssrf:2}
+  technique coverage (stratified by type):
+      sqli  → blind-time, boolean-blind, error-based, tautology, union
 ```
 
-**Responsibility analysis of this pipeline** — the selector currently fires only ~5% of the
-arsenal and skips whole SQLi techniques, a real coverage blind spot. Documented with numbers
-in [`docs/fairness_evaluation.md`](docs/fairness_evaluation.md) and
+**Responsibility analysis of this pipeline** — selection now **stratifies by technique**, so
+SQLi technique coverage rose **3/6 → 5/6** (`union` & `error-based` are now fired). The one
+remaining gap, `stacked-queries`, is **unreachable from the current injection points** — a
+*recon* blind spot, not a selection bias. Documented with before/after numbers in
+[`docs/fairness_evaluation.md`](docs/fairness_evaluation.md) and
 [`docs/risk_assessment.md`](docs/risk_assessment.md). (The baseline *model's* fairness/risk
 is separate, inside `models/baseline.ipynb`.)
 
@@ -293,8 +298,9 @@ starts in `models/` or the repo root.
 ---
 
 ## 9. Roadmap
-1. **Fairer selection** — stratify by technique + raise `k_per_class` so `union` /
-   `error-based` / `stacked-queries` SQLi stop being skipped (fairness §3).
+1. **Fairer selection** — ✅ **done**: selection stratifies by `type` (`k_per_type=2`) so
+   `union` / `error-based` SQLi are no longer skipped (3/6 → 5/6 techniques). Remaining:
+   expose a `form_field` SQLi injection point in recon so `stacked-queries` becomes reachable.
 2. **Governance gate (Layer 4)** — hold `is_destructive`/critical payloads for review and
    throttle rate, as YAML rules; **required before execution is enabled**.
 3. **Live recon** — wire the requests + BeautifulSoup crawler as primary, profile as fallback.
