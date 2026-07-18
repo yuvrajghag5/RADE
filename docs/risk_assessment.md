@@ -12,7 +12,7 @@ serious risks below are about *what happens when execution is added* and about *
 | # | Risk | Likelihood | Impact | Evidence / note |
 |---|---|---|---|---|
 | P1 | **Scope escape** — scanning a host that isn't ours | Low | **Critical** (StGB §202a) | mitigated by `require_loopback` + allowlist + reject-by-default |
-| P2 | **Recon blind spots** — profile-based recon misses real injection points | High | Medium | current recon reads a declared DVWA profile; a missed point = untested surface |
+| P2 | **Recon blind spots** — a crawl misses real injection points | ~~High~~ **Reduced** | Medium | recon is now a **live crawler** (logs in, parses forms + URL params on the running target), not a static profile. Residual: it only visits seed + menu-linked pages, so an unlinked endpoint is still a blind spot |
 | P3 | **Selection coverage gap** — techniques never fired → false "not vulnerable" | ~~High~~ **Reduced** | High | **mitigated:** selection now **stratifies by `type`**, so SQLi technique coverage went 3/6 → 5/6 (`union`/`error-based` now fired). Residual: `stacked-queries` unreachable — reclassified as a recon gap (P2), not selection bias (fairness §1) |
 | P4 | **Destructive payload reaches execution** | Medium | **High** | selection does **not** exclude destructive payloads — 0 were selected here only *incidentally* (bucket mismatch), not by design |
 | P5 | **Over-trust** — treating "selected" as "vulnerable" | Medium | Medium | selection ≠ confirmation; only the Layer-6 oracle proves a hit |
@@ -30,8 +30,10 @@ serious risks below are about *what happens when execution is added* and about *
 - **P1** `require_loopback: true` hard guard + allowlist stored as reviewable data
   (`config/target_allowlist.yaml`) + reject-by-default. The scope firewall is the central
   lawfulness control.
-- **P2** wire the live crawler (requests + BeautifulSoup) as the primary recon, keeping the
-  profile only as a fallback; log every discovered vs profiled point.
+- **P2** **done** — live crawler (requests + BeautifulSoup) is now the primary recon: it logs
+  in, sets the security level, and parses forms + URL params on the running target. It
+  hard-fails if the target is down (no silent profile fallback). Residual work: follow links
+  beyond the seed/menu set to catch unlinked endpoints.
 - **P3** **done** — selection stratifies by `type` (`k_per_type=2`), so every *reachable*
   technique gets a slot (fairness §3); coverage is now printed per scan by `main.py`. Residual
   `stacked-queries` gap rolls up into **P2** (recon must expose a `form_field` SQLi point).

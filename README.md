@@ -1,18 +1,21 @@
 # Offensive IT-Tester
 
-An AI-assisted, **autonomous-but-bounded web-application vulnerability scanner** built for
-the *Responsible AI & Data Ethics* course. It takes an **authorized target URL**, uses a
-labelled payload arsenal to attack known injection points (SQLi, XSS, CMDi, SSRF, CSRF),
-**verifies which vulnerabilities are real**, and produces a redacted, fully audited report.
+An AI-assisted, **autonomous-but-bounded web-application vulnerability-testing agent** built
+for the *Responsible AI & Data Ethics* course. Given an **authorized target URL**, the agent
+orchestrates a set of tools — authorize, live-recon, payload-selection — to find injection
+points (SQLi, XSS, CMDi, SSRF, CSRF), choose the payloads that would test them, and write an
+LLM run report — logging every decision to a tamper-evident ledger. An optional open-source
+LLM can drive the orchestration. (Firing + verification are the planned Layers 4-6.)
 
 The offensive capability is the smaller part — the graded emphasis is on making it
 **responsible**: authorization at the front, safety limits during, transparency throughout,
 and accountability around the whole thing.
 
-> **Scope & safety.** The scanner only runs against targets on an explicit allowlist — in
-> practice a deliberately vulnerable app we host ourselves (OWASP Juice Shop / DVWA) in an
-> isolated environment. It *cannot* be pointed at an arbitrary third-party site. This keeps
-> the project within German law (§202a/b/c StGB), GDPR, and the EU AI Act.
+> **Scope & safety.** The agent only runs against targets on an explicit allowlist — in
+> practice a deliberately vulnerable app we host ourselves (a self-owned Flask sandbox, or
+> DVWA in a local Docker container) on a **loopback** address. It *cannot* be pointed at an
+> arbitrary third-party site. This keeps the project within German law (§202a/b/c StGB),
+> GDPR, and the EU AI Act.
 
 ---
 
@@ -23,8 +26,11 @@ and accountability around the whole thing.
 | Data engineering (repair → clean → benign corpus → final dataset) | ✅ **done** |
 | Exploratory analysis (`preprocess/analysis.ipynb`) | ✅ **done** |
 | Baseline model + fairness + risk (`models/baseline.ipynb`) | ✅ **done** |
-| **Layers 1–3: authorization → recon → payload selection** (`main.py`) | ✅ **done** |
-| Layer 4–7: governance gate, execution, detection oracles, reporting | ◻ **planned** (design below) |
+| **Agent** — tool registry + decision policy + audit ledger (`src/agent/`) | ✅ **done** |
+| **Layers 1–3: authorization → LIVE recon → payload selection** (`main.py`) | ✅ **done** |
+| Live sandbox target (`sandbox/target_app.py`) + live crawler | ✅ **done** |
+| **LLM orchestrator + Layer 7 report** — open-source `qwen2.5:7b` via Ollama | ✅ **done** (opt-in) |
+| Layer 4–6: governance gate, execution, detection oracles | ◻ **planned** (design below) |
 
 This README documents both what exists today and the target design it plugs into.
 
@@ -46,7 +52,7 @@ flowchart TD
         RECON[Find injection points<br/>forms, params, headers]
     end
     subgraph L3 [Layer 3 - Intelligence]
-        SELECT[Payload selection<br/>from labelled dataset + ML router]
+        SELECT[Payload selection<br/>from labelled dataset, stratified by technique]
     end
     subgraph L4 [Layer 4 - Governance and safety]
         GOV{{Governance gate<br/>severity + destructive + rate limits}}
@@ -121,12 +127,16 @@ RADE/
 ├── requirements.txt
 ├── LICENSE
 │
-├── main.py                        # ✅ pipeline driver: runs Layers 1-3, prints selected payloads
+├── main.py                        # ✅ AGENT driver: builds the tool registry, runs the decide-act loop
+│
+├── sandbox/                       # ✅ self-owned LIVE target (loopback-only Flask app)
+│   └── target_app.py              #    vulnerable-by-design; the thing recon crawls
 │
 ├── config/                        # ✅ paths + safety rules as DATA
 │   ├── paths.py                   #    canonical project paths (ROOT/DATA/RAW_DIR/CLEAN/PROCESSED)
 │   ├── target_allowlist.yaml      #    the scope firewall — which hosts may be scanned (sandbox only)
-│   └── targets/dvwa.yaml          #    DVWA sandbox injection-point profile (recon input)
+│   ├── targets/dvwa.yaml          #    DVWA crawl config (login, seed paths) + offline profile
+│   └── targets/pyapp.yaml         #    self-owned Flask sandbox crawl profile (no auth)
 │
 ├── data/
 │   ├── raw/                       # ✅ untouched sources
@@ -152,19 +162,40 @@ RADE/
 │   └── clf_attack_class.pkl       #    5-way attack_class router
 │
 └── src/                           # the scanner (maps onto layers 1-7)
+    ├── agent/                     # ✅ the AGENT — orchestrates the tools (not a fixed pipeline)
+    │   ├── tools.py               #    Tool base + ToolRegistry (Anthropic-style specs, LLM-ready)
+    │   ├── layer_tools.py         #    L1-3 wrapped as tools: authorize / recon / select_payloads
+    │   ├── policy.py              #    the swappable "brain": DeterministicPolicy + LLMPolicy
+    │   ├── llm.py                 #    open-source LLM client (qwen2.5:7b via Ollama)
+    │   ├── agent.py               #    perceive → decide → act loop + working memory (AgentState)
+    │   └── audit.py               #    hash-chained, tamper-evident run ledger
     ├── authorization/authorize.py # ✅ L1 — allowlist / scope firewall
-    ├── recon/recon.py             # ✅ L2 — injection-point discovery (profile-based)
+    ├── recon/recon.py             # ✅ L2 — LIVE injection-point discovery (crawls the target)
     ├── intelligence/select.py     # ✅ L3 — payload selection from the arsenal
+    ├── reporting/report.py        # ✅ L7 — LLM-generated run report (Art. 50 labelled)
     ├── governance/                # ◻ L4 — severity / destructive holds, rate limits
     ├── execution/                 # ◻ L5 — fire payloads, capture responses
-    ├── detection/                 # ◻ L6 — the six confirm() oracles
-    └── reporting/  audit/         # ◻ L7 — report + tamper-evident log
+    └── detection/                 # ◻ L6 — the six confirm() oracles
 ```
 
-**Two deliberate choices carried from the design:** `config/` will hold safety rules as
-readable *data* (allowlist, thresholds) so an examiner can see the scope firewall at a glance;
-and `audit/` will be separate from `reporting/` because reports are for the user while audit
-logs are the tamper-evident record of what the agent actually did.
+**Why an agent, not a pipeline.** `main.py` does not call the layers in a fixed order — it
+builds a **tool registry** (`authorize`, `recon`, `select_payloads`) and hands it to an
+**Agent** that runs a *perceive → decide → act* loop: a **policy** chooses each next tool from
+the agent's observed **state**, and branches — a scope rejection or a recon failure ends the
+run. The policy is a swappable interface with **two implementations**: `DeterministicPolicy`
+(default — reproducible, safe) and `LLMPolicy` (opt-in `--llm`), where an **open-source model
+(`qwen2.5:7b` via Ollama)** is given the tool specs + state and chooses the next tool by
+tool-calling. The LLM is **bounded**: it is only ever offered the currently-valid tools, scope
+is still enforced by the `authorize` tool, structured args are supplied by the policy, and any
+error/invalid choice **falls back to the deterministic policy** — so the model can never drive
+the agent into an unsafe step (a direct answer to OWASP LLM08, excessive agency). Every decision
++ result is appended to a **tamper-evident audit ledger** (`audit/audit.jsonl`, hash-chained;
+`AuditLog.verify()` detects any edit).
+
+**Two deliberate choices carried from the design:** `config/` holds safety rules as readable
+*data* (allowlist, crawl scope) so an examiner can see the scope firewall at a glance; and
+`audit/` is separate from `reporting/` because reports are for the user while audit logs are
+the tamper-evident record of what the agent actually did.
 
 ---
 
@@ -221,41 +252,67 @@ assessment** (NIST Map → Measure → Manage).
 
 ---
 
-## 6. The scanner pipeline (Layers 1–3)
+## 6. The agent (Layers 1–3)
 
-`main.py` runs the first three layers and **stops before firing** — it prints the payloads
-the agent *would* send at each injection point. No request is made; it is safe to run.
+`main.py` builds a **tool registry** (`authorize`, `recon`, `select_payloads`) and runs an
+**agent** over it — a *perceive → decide → act* loop whose policy picks each next tool from the
+agent's state and **branches** on the result (a scope rejection or a recon failure ends the
+run). It **stops before firing a payload** — recon makes ordinary read requests (log in, load
+pages) to crawl the target, but no *attack* payload is ever sent. It prints the payloads the
+agent *would* fire, and appends every decision to a tamper-evident ledger (`audit/audit.jsonl`).
+See §3 ("Why an agent, not a pipeline") for the architecture.
 
 ```bash
-python main.py                    # default sandbox target (127.0.0.1:8080)
-python main.py http://example.com # authorization gate REJECTS (out of scope)
+# 1. start the self-owned live sandbox (loopback only, no Docker needed)
+python sandbox/target_app.py                 # serves http://127.0.0.1:5000
+
+# 2. in another terminal, run the agent against it
+python main.py http://127.0.0.1:5000              # deterministic brain
+python main.py http://127.0.0.1:5000 --llm        # LLM orchestrator (qwen2.5:7b via Ollama)
+python main.py http://127.0.0.1:5000 --llm --report   # + Layer-7 LLM report into reports/
+python main.py http://example.com                 # authorization gate REJECTS (out of scope)
+python main.py http://127.0.0.1:8080              # DVWA (needs DVWA running in Docker)
 ```
+
+The `--llm` / `--report` paths need Ollama running with `qwen2.5:7b` pulled
+(`ollama pull qwen2.5:7b`); model + endpoint are set in `config/llm.yaml`. If Ollama is
+unreachable, `--llm` falls back to the deterministic policy.
 
 **What each layer does**
 1. **Authorization** — approves the URL only if it's an allowlisted **loopback** sandbox
    host; `example.com` and wrong ports are rejected with a reason (the scope firewall).
-2. **Recon** — reads the DVWA sandbox profile (`config/targets/dvwa.yaml`) and returns the
-   injection points (live crawling is a later add-on).
+2. **Recon (live)** — actually connects to the target, crawls its pages, and parses every
+   `<form>` field and URL parameter with BeautifulSoup to **discover** injection points. For
+   DVWA it logs in (`admin`/`password`) and sets security to `low` first; for the Flask
+   sandbox it crawls unauthenticated. It **hard-fails** if the target is unreachable — no
+   silent fallback. (Crawl settings live in `config/targets/*.yaml` as data.)
 3. **Selection** — picks payloads from `dataset_final` per injection point (by attack class
    + context bucket), **stratified by technique**: it groups candidates by `type` and takes
    the best `k_per_type` (=2) of *every* technique, so no technique is skipped. Each is tagged
    with the `oracle` that will verify it.
 
-**Sample output** (trimmed):
+**Sample output** (trimmed, Flask sandbox):
 ```
 [LAYER 3] PAYLOAD SELECTION
-  ▶ sqli_id  (GET id, bucket=url_param)  → 3 payloads
+  ▶ sqli  (GET id, bucket=url_param)  → 4 payloads
       [sqli-016 ] sqli/blind-time    high  oracle=timing          "' OR SLEEP(5)--"
       [sqli-004 ] sqli/error-based   high  oracle=error_signature "' AND 1=CONVERT(int,@@version)--"
 SELECTED 25 payloads across 6 injection points  by class {sqli:11, xss:6, csrf:4, cmdi:2, ssrf:2}
   technique coverage (stratified by type):
       sqli  → blind-time, boolean-blind, error-based, tautology, union
+
+[AUDIT] 12 events logged · chain OK — chain intact
+        ledger: audit/audit.jsonl
 ```
+(Against live DVWA the crawl finds 15 injection points and coverage reaches the full 6/6 — see below.)
 
 **Responsibility analysis of this pipeline** — selection now **stratifies by technique**, so
-SQLi technique coverage rose **3/6 → 5/6** (`union` & `error-based` are now fired). The one
-remaining gap, `stacked-queries`, is **unreachable from the current injection points** — a
-*recon* blind spot, not a selection bias. Documented with before/after numbers in
+SQLi technique coverage rose **3/6 → 5/6** on the offline profile (`union` & `error-based` now
+fired). The last gap, `stacked-queries`, needed a `form_field` injection point that the
+hand-written profile lacked — a *recon* blind spot, not a selection bias. **Live recon proves
+this out:** crawling real DVWA discovers 15 injection points (vs 6 profiled), including
+`form_field` endpoints, which lifts coverage to the **full 6/6** — better recon closed the gap
+that better selection alone could not. Documented with before/after numbers in
 [`docs/fairness_evaluation.md`](docs/fairness_evaluation.md) and
 [`docs/risk_assessment.md`](docs/risk_assessment.md). (The baseline *model's* fairness/risk
 is separate, inside `models/baseline.ipynb`.)
@@ -271,17 +328,26 @@ python -m preprocess.build_dataset
 # 2. train + evaluate + save the baseline models, then read fairness & risk
 #    open models/baseline.ipynb and run all cells (use the .venv kernel)
 
-# 3. run the scanner pipeline (Layers 1-3) — prints the payloads it would fire
-python main.py                         # default sandbox target (127.0.0.1:8080)
-python main.py http://example.com      # shows the authorization gate rejecting
+# 3. run the AGENT (Layers 1-3) against a live target
+python sandbox/target_app.py                # terminal A: start the self-owned sandbox (:5000)
+python main.py http://127.0.0.1:5000        # terminal B: agent live-crawls + selects payloads
+python main.py http://example.com           # authorization gate rejects (out of scope)
+
+#    optional DVWA target instead of the Flask sandbox (needs Docker):
+#    docker run --rm -it -p 8080:80 vulnerables/web-dvwa
+python main.py http://127.0.0.1:8080
+
+# 4. verify the tamper-evident audit ledger
+python -c "from src.agent import AuditLog; from config.paths import ROOT; print(AuditLog.verify(ROOT/'audit'/'audit.jsonl'))"
 ```
 
 The notebook adds the project root to `sys.path` automatically, so it runs whether the kernel
 starts in `models/` or the repo root.
 
-**Core dependencies:** `pandas`, `scikit-learn`, `matplotlib`, `joblib`, `jupyter`
-(+ `requests`/`httpx`, `beautifulsoup4`, `PyYAML`, `Jinja2` for the planned scanner). See
-`requirements.txt`.
+**Core dependencies:** `pandas`, `scikit-learn`, `matplotlib`, `joblib`, `jupyter` (data +
+model); `requests`, `beautifulsoup4`, `PyYAML` (live recon + config); `flask` (the self-owned
+sandbox). See `requirements.txt`. The optional `--llm` / `--report` features need **Ollama**
+(external, running `qwen2.5:7b`) — no extra Python packages, since it's called over HTTP.
 
 ---
 
@@ -289,7 +355,7 @@ starts in `models/` or the repo root.
 
 | Framework | Relevance |
 |---|---|
-| **EU AI Act** (Reg. 2024/1689) | Not a prohibited practice (Art. 5) and not high-risk (Art. 6/Annex III) — a sandboxed academic scanner matches no Annex III category. One live duty: Art. 50 transparency (label AI-generated output). |
+| **EU AI Act** (Reg. 2024/1689) | Not a prohibited practice (Art. 5) and not high-risk (Art. 6/Annex III) — a sandboxed academic scanner matches no Annex III category. One live duty: Art. 50 transparency — **✅ implemented**: the Layer-7 LLM report carries an "AI-generated" label. |
 | **GDPR** (Reg. 2016/679) | Art. 5(1)(c) data minimisation — training data is payload strings + benign inputs only; **CSIC 2010 is auto-generated, so no real PII**. Purpose (Art. 5(1)(b)) and storage limitation (Art. 5(1)(e)) documented. |
 | **StGB** §202a/b/c, §303a/b | Data espionage / interception / hacking-tools / data alteration / sabotage — all neutralised by the **self-owned sandbox + enforced target-scoping + non-destructive default mode + documented authorization** (the central lawfulness argument). |
 | **OWASP Top 10** (A03 Injection) + **LLM Top 10** (LLM01/LLM08) | Grounds *what* is tested (injection classes) and the agent-safety concerns (prompt injection, excessive agency → bounded agency, validated inputs). |
@@ -299,11 +365,17 @@ starts in `models/` or the repo root.
 
 ## 9. Roadmap
 1. **Fairer selection** — ✅ **done**: selection stratifies by `type` (`k_per_type=2`) so
-   `union` / `error-based` SQLi are no longer skipped (3/6 → 5/6 techniques). Remaining:
-   expose a `form_field` SQLi injection point in recon so `stacked-queries` becomes reachable.
-2. **Governance gate (Layer 4)** — hold `is_destructive`/critical payloads for review and
+   `union` / `error-based` SQLi are no longer skipped (3/6 → 5/6); live recon then closes the
+   last gap (`stacked-queries`) to the **full 6/6** on DVWA.
+2. **Live recon** — ✅ **done**: `requests` + BeautifulSoup crawler logs into DVWA (or crawls
+   the Flask sandbox unauthenticated) and discovers injection points live; **hard-fails** if
+   the target is down (no silent profile fallback).
+3. **The agent + LLM** — ✅ **done**: tool registry + deterministic policy + audit ledger, plus
+   an opt-in **`LLMPolicy`** (open-source `qwen2.5:7b` via Ollama) that orchestrates the tools
+   by tool-calling, bounded and with deterministic fallback.
+4. **Reporting (Layer 7)** — ✅ **done**: LLM-generated run report (`--report`), framed as
+   candidate/planned (not confirmed) with an EU AI Act Art. 50 label + a deterministic facts block.
+5. **Governance gate (Layer 4)** — hold `is_destructive`/critical payloads for review and
    throttle rate, as YAML rules; **required before execution is enabled**.
-3. **Live recon** — wire the requests + BeautifulSoup crawler as primary, profile as fallback.
-4. **Execution + detection (Layers 5–6)** — fire payloads at DVWA and implement the six
+6. **Execution + detection (Layers 5–6)** — fire payloads at the sandbox and implement the six
    `confirm()` oracles; add an adversarial eval set to measure evasion.
-5. **Reporting + audit (Layer 7)** — findings report + tamper-evident log.

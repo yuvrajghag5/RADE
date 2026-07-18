@@ -11,10 +11,13 @@ joblib>=1.3            # persist trained models -> models/*.pkl
 # Config + Layer 1 (authorization) + Layer 2 recon profiles
 PyYAML>=6.0
 
-# Layer 2 (reconnaissance) — live crawler
-#   (profile-based recon runs without these; needed once live crawling is wired up)
+# Layer 2 (reconnaissance) — LIVE crawler (required: recon logs in + crawls the target)
 requests>=2.31
 beautifulsoup4>=4.12
+
+# Self-owned live sandbox target (sandbox/target_app.py) — used when DVWA/Docker
+# is unavailable; recon crawls it exactly like DVWA.
+flask>=3.0
 
 # Notebooks — preprocess/analysis.ipynb and models/baseline.ipynb
 notebook>=7.0

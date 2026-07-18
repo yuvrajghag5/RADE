@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# SANDBOX TARGET PROFILE — self-owned Flask app (sandbox/target_app.py).
+#
+# A no-authentication, loopback-only target used when Docker/DVWA is not
+# available. Recon crawls it live exactly like DVWA; because there is no
+# `login_path`, recon skips the login/security steps.
+# ---------------------------------------------------------------------------
+base_url: "http://127.0.0.1:5000"
+
+crawl:
+  # no login_path -> recon runs unauthenticated
+  index_path: "/"
+  seed_paths:
+    - "/sqli?id=1"
+    - "/xss?name=friend"
+    - "/comment"
+    - "/exec"
+    - "/account"
+    - "/fetch?url=http://example.com"
+  request_timeout: 10

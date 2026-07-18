@@ -1,18 +1,46 @@
 # ---------------------------------------------------------------------------
 # SANDBOX TARGET PROFILE — DVWA (Damn Vulnerable Web Application).
 #
-# In a full build, Layer 2 (recon) would discover these injection points live
-# by crawling forms/params. Until the live crawler is wired up, they are
-# declared here as DATA so the pipeline runs offline against the known layout
-# of the DVWA sandbox.
+# `crawl:` drives LIVE reconnaissance (Layer 2). Recon logs in, sets the
+# security level, then crawls the pages below, parsing forms + URL params to
+# DISCOVER injection points on the running app. These are data, not code, so
+# the scope/credentials of a scan are auditable at a glance.
 #
-# Each injection point records:
-#   param   – the input to inject into
-#   bucket  – the normalised injection-point bucket (matches dataset context_bucket)
-#   classes – which attack classes are worth trying at this point
+# `injection_points:` is the OLD declared profile, kept only for the offline
+# fallback function `discover_from_profile()` (not used by the live path).
 # ---------------------------------------------------------------------------
 base_url: "http://127.0.0.1:8080"
 
+crawl:
+  # --- authentication (DVWA ships with these defaults) ---
+  login_path: "/login.php"
+  username: "admin"
+  password: "password"
+
+  # --- security level: "low" makes the injection points exploitable ---
+  security_path: "/security.php"
+  security_level: "low"
+
+  # --- best-effort DB setup so a fresh container is usable on first run ---
+  setup_path: "/setup.php"
+  auto_setup: true
+
+  # --- where to look for injection points ---
+  # index_path is scanned for links to /vulnerabilities/* (auto-discovery);
+  # seed_paths are always visited even if the menu link is missing.
+  index_path: "/index.php"
+  seed_paths:
+    - "/vulnerabilities/sqli/"
+    - "/vulnerabilities/sqli_blind/"
+    - "/vulnerabilities/xss_r/"
+    - "/vulnerabilities/xss_s/"
+    - "/vulnerabilities/exec/"
+    - "/vulnerabilities/csrf/"
+    - "/vulnerabilities/fi/?page=include.php"
+
+  request_timeout: 10   # seconds per HTTP request
+
+# --- offline fallback profile (discover_from_profile only) -----------------
 injection_points:
   - name: "sqli_id"
     url: "/vulnerabilities/sqli/"

@@ -1,0 +1,12 @@
+# ---------------------------------------------------------------------------
+# LLM configuration — open-source model served locally by Ollama.
+#
+# Used by (a) the optional LLMPolicy orchestrator (--llm) and (b) the Layer-7
+# report generator (--report). Local + open-source keeps the project's
+# privacy/self-hosting stance: no data leaves the machine, no API key.
+# ---------------------------------------------------------------------------
+provider: "ollama"
+host: "http://localhost:11434"
+model: "qwen2.5:7b"        # strong tool-calling + writing; already pulled
+timeout: 120               # seconds per LLM call
+temperature: 0.2           # low = more deterministic/factual
