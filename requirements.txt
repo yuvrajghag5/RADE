@@ -33,6 +33,4 @@ notebook>=7.0
 ipykernel>=6.25        # kernel that executes the notebook cells
 nbformat>=5.9          # read/write notebooks
 nbconvert>=7.0         # execute notebooks programmatically
-
-# Tests (planned, tests/)
-pytest>=8.0
+# (tests are a single notebook, unit_test.ipynb — no extra deps)

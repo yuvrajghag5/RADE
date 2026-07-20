@@ -146,7 +146,24 @@ Prints `(True, 'chain intact')` if nothing was edited.
 
 ---
 
-## 6. (Optional) Rebuild the dataset and baseline model
+## 6. Run the tests (weakness detection)
+
+All tests live in a single notebook, **`unit_test.ipynb`** — one section per layer, each asking
+the single most important question about a weakness that layer could have (scope-firewall
+bypass, selection collapsing to one technique, hidden destructive payloads, calling an
+unconfirmed result "safe", a faked confirmation, audit tampering, and model evasion). It starts
+the sandbox itself.
+
+Open it and **Run All** (kernel: *RADE (.venv)*), or run headless:
+```bash
+python -m jupyter nbconvert --to notebook --execute --inplace unit_test.ipynb \
+       --ExecutePreprocessor.kernel_name=rade-venv
+```
+Expect **8/8 key questions passing**, reported in the final cell.
+
+---
+
+## 7. (Optional) Rebuild the dataset and baseline model
 
 Not needed to run the agent — only if you want to regenerate the data/model artifacts.
 ```bash
@@ -158,7 +175,7 @@ python -m preprocess.build_dataset
 
 ---
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|

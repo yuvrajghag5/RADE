@@ -34,6 +34,7 @@ and accountability around the whole thing.
 | **Layer 7: report** — open-source LLM (HuggingFace `Qwen2.5-1.5B`) writes findings | ✅ **done** |
 | Live sandbox target (`sandbox/target_app.py`) + live crawler | ✅ **done** |
 | Detection oracles: **2 of 6 proven** on the sandbox (`differential`, `browser_execution`); rest need DVWA/infra | ◻ **see [`docs/oracles_explained.md`](docs/oracles_explained.md)** |
+| **Tests** — single weakness-detection notebook (`unit_test.ipynb`), one key question per layer | ✅ **done** |
 
 This README documents both what exists today and the target design it plugs into.
 
