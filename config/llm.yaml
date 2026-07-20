@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------------------
-# LLM configuration — open-source model served locally by Ollama.
+# LLM configuration — open-source model run locally via HuggingFace transformers.
 #
-# Used by (a) the optional LLMPolicy orchestrator (--llm) and (b) the Layer-7
-# report generator (--report). Local + open-source keeps the project's
-# privacy/self-hosting stance: no data leaves the machine, no API key.
+# Used by the Layer-7 report generator (--report). Local + open-source keeps the
+# project's privacy/self-hosting stance: the model runs in-process on this
+# machine, no API key, nothing leaves the box. The model is downloaded from the
+# HuggingFace Hub on first use and cached.
 # ---------------------------------------------------------------------------
-provider: "ollama"
-host: "http://localhost:11434"
-model: "qwen2.5:7b"        # strong tool-calling + writing; already pulled
-timeout: 120               # seconds per LLM call
-temperature: 0.2           # low = more deterministic/factual
+provider: "huggingface"
+model: "Qwen/Qwen2.5-1.5B-Instruct"   # small instruct model; runs on CPU or GPU
+max_new_tokens: 500
+temperature: 0.3

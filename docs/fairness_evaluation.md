@@ -1,9 +1,10 @@
-# Fairness Evaluation — Scanner Pipeline (Layers 1–3)
+# Fairness Evaluation — Payload Selection (Layer 3)
 
-**Scope.** This document assesses the **payload-selection pipeline** (`main.py`:
-authorization → recon → selection). The *baseline classifier's* fairness (per-class
-precision/recall) lives in `models/baseline.ipynb` §7 — this is the complementary,
-system-level view.
+**Scope.** This document assesses **fairness of payload selection** (Layer 3 of the full
+agent) — equal test coverage across attack classes and techniques. The *baseline classifier's*
+fairness (per-class precision/recall) lives in `models/baseline.ipynb` §7; this is the
+complementary, system-level view. (Layers 4–7 — governance, execution, detection, report — are
+covered in `docs/risk_assessment.md` and `docs/oracles_explained.md`.)
 
 **What "fairness" means here.** Equal **test coverage** — across attack classes *and*
 across techniques within a class. A class or technique that is selected less often is

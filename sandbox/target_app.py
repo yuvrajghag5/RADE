@@ -43,7 +43,7 @@ PAGE = """<!doctype html><html><head><title>{title}</title></head><body>
 def index():
     # links here let recon auto-discover every injection point
     links = [
-        ("/sqli?id=1", "SQL injection (GET id)"),
+        ("/sqli?user=admin", "SQL injection (GET user)"),
         ("/xss?name=friend", "Reflected XSS (GET name)"),
         ("/comment", "Stored XSS (POST comment)"),
         ("/exec", "Command injection (POST ip)"),
@@ -58,14 +58,18 @@ def index():
 
 @app.route("/sqli")
 def sqli():
-    # VULNERABLE: string-concatenated SQL (SQLi via ?id=)
-    uid = request.args.get("id", "1")
+    # VULNERABLE: string-concatenated SQL in a STRING context (SQLi via ?user=).
+    # A quote breaks the query -> real SQLite error (error_signature oracle); a
+    # tautology like ' OR '1'='1 returns every row (differential oracle).
+    q = request.args.get("user", request.args.get("id", ""))
     try:
-        rows = _db.execute(f"SELECT id, name FROM users WHERE id = {uid}").fetchall()
-        out = "<br>".join(f"id={r[0]} name={html.escape(str(r[1]))}" for r in rows)
-    except Exception as e:  # errors are themselves an SQLi oracle signal
+        rows = _db.execute(
+            f"SELECT id, name FROM users WHERE name = '{q}'").fetchall()
+        out = ("<br>".join(f"id={r[0]} name={html.escape(str(r[1]))}" for r in rows)
+               or "no user found")
+    except Exception as e:  # the DB error is itself the SQLi oracle signal
         out = f"SQL error: {html.escape(str(e))}"
-    form = '<form action="/sqli" method="GET"><input name="id" value="1">' \
+    form = '<form action="/sqli" method="GET"><input name="user" value="admin">' \
            '<input type="submit" value="Submit"></form>'
     return PAGE.format(title="SQLi", body=form + "<hr>" + out)
 
@@ -97,7 +101,9 @@ def exec_cmd():
     ip = request.form.get("ip", "") if request.method == "POST" else ""
     form = '<form action="/exec" method="POST"><input name="ip" value="127.0.0.1">' \
            '<input type="submit" value="Ping"></form>'
-    out = f"<hr><pre>PING {html.escape(ip)} (simulated)</pre>" if ip else ""
+    # Simulated: we do NOT run a shell and do NOT echo the input back, so no oracle
+    # can (falsely) confirm command execution here — CMDi is honestly unconfirmable.
+    out = "<hr><pre>command execution is simulated in this sandbox</pre>" if ip else ""
     return PAGE.format(title="Command Injection", body=form + out)
 
 
@@ -119,7 +125,9 @@ def fetch():
     url = request.args.get("url", "")
     form = '<form action="/fetch" method="GET"><input name="url" value="http://example.com">' \
            '<input type="submit" value="Fetch"></form>'
-    out = f"<hr>would fetch: {html.escape(url)}" if url else ""
+    # Simulated: no request is made and the URL is not echoed back (SSRF would need
+    # a real out-of-band callback server to confirm — honestly unconfirmable here).
+    out = "<hr>fetch is simulated in this sandbox (no request made)" if url else ""
     return PAGE.format(title="SSRF", body=form + out)
 
 

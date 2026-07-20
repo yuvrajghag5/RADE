@@ -1,101 +1,87 @@
 """
-Layer 7 — reporting (open-source LLM via Ollama).
+Layer 7 — reporting (open-source LLM via HuggingFace transformers).
 
-Turns the agent's structured run state into a readable Markdown report. The LLM
-only *narrates facts we hand it* — it is explicitly told NOT to invent or confirm
-vulnerabilities, because execution/detection (Layers 5-6) are not built yet: what
-recon found are **candidate** injection points and what selection produced is a
-**planned test set**, not confirmed findings.
+Turns the agent's run state — including the Layer-6 confirmations — into a
+readable Markdown findings report. The LLM only *narrates facts we hand it*: the
+confirmed/unconfirmed findings come from the oracles, not the model, and a
+deterministic facts block is appended verbatim so the ground truth is present
+even if the model phrases things loosely.
 
-Two responsible-AI controls are baked in:
-  * an EU AI Act Art. 50 transparency label (the report is AI-generated), and
-  * a deterministic facts block appended verbatim, so the ground truth is present
-    even if the model phrases things loosely.
+Two responsible-AI controls are baked in: an EU AI Act Art. 50 transparency label
+(the prose is AI-generated) and an honest confidence framing (e.g. reflected-XSS
+is a candidate confirmed by reflection, not by observing JS execution).
 """
 from __future__ import annotations
+import json
 from collections import Counter
 
-from src.agent.llm import OllamaClient, LLMError
+from src.agent.llm import HFClient, LLMError
 
 
-def build_run_summary(state) -> dict:
-    """Compact, factual summary of the run for the model to narrate."""
-    points = state.points or []
-    selection = state.selection or []
-
-    class_counts: Counter = Counter()
-    techniques: dict[str, set] = {}
-    total_payloads = 0
-    for pt, payloads in selection:
-        for p in payloads:
-            total_payloads += 1
-            class_counts[p["attack_class"]] += 1
-            techniques.setdefault(p["attack_class"], set()).add(p["type"])
+def build_run_summary(state: dict) -> dict:
+    points = state.get("points") or []
+    findings = state.get("findings") or []
+    gate = state.get("gate")
+    confirmed = [f for f in findings if f.get("confirmed") is True]
 
     return {
-        "target": state.goal,
-        "profile": state.profile,
-        "authorized": state.authorized,
-        "status": state.status,
-        "abort_reason": state.abort_reason,
-        "injection_points": [
-            {"name": pt.name, "method": pt.method, "param": pt.param,
-             "bucket": pt.bucket, "classes": pt.classes, "url": pt.full_url}
-            for pt in points
-        ],
+        "target": state.get("target"),
+        "profile": state.get("profile"),
+        "authorized": state.get("authorized"),
+        "status": state.get("status"),
         "n_injection_points": len(points),
-        "n_payloads_selected": total_payloads,
-        "by_class": dict(class_counts),
-        "technique_coverage": {k: sorted(v) for k, v in techniques.items()},
-        "steps": state.steps,
+        "n_fired": len(findings),
+        "n_confirmed": len(confirmed),
+        "n_held": len(gate.held) if gate else 0,
+        "confirmed_by_class": dict(Counter(f["attack_class"] for f in confirmed)),
+        "confirmed_findings": [
+            {"attack_class": f["attack_class"], "type": f["type"], "point": f["point"],
+             "oracle": f["oracle"], "confidence": f["confidence"], "evidence": f["evidence"]}
+            for f in confirmed
+        ],
     }
 
 
-def _facts_block(summary: dict) -> str:
+def _facts_block(s: dict) -> str:
     lines = [
         "## Ground-truth facts (deterministic)",
-        f"- Target: `{summary['target']}`  · profile: `{summary['profile']}`",
-        f"- Authorized: {summary['authorized']}  · run status: {summary['status']}",
-        f"- Injection points discovered: {summary['n_injection_points']}",
-        f"- Payloads selected: {summary['n_payloads_selected']}  · by class: {summary['by_class']}",
-        "- Technique coverage:",
+        f"- Target: `{s['target']}`  · profile: `{s['profile']}`  · authorized: {s['authorized']}",
+        f"- Injection points: {s['n_injection_points']}  · payloads fired: {s['n_fired']}  "
+        f"· held by governance: {s['n_held']}",
+        f"- **Confirmed exploits: {s['n_confirmed']}**  · by class: {s['confirmed_by_class']}",
     ]
-    for cls, techs in sorted(summary["technique_coverage"].items()):
-        lines.append(f"    - {cls}: {', '.join(techs)}")
+    for f in s["confirmed_findings"]:
+        lines.append(f"    - {f['attack_class']}/{f['type']} at `{f['point']}` "
+                     f"via `{f['oracle']}` ({f['confidence']}): {f['evidence']}")
     return "\n".join(lines)
 
 
-PROMPT = """You are writing a concise security-assessment RUN REPORT for a bounded, \
-authorized web-application testing agent. Use ONLY the JSON facts provided — do not \
-invent vulnerabilities, CVEs, or results. IMPORTANT: no payload has been fired and no \
-exploit has been confirmed (the execution/detection stages are not implemented), so \
-describe the injection points as CANDIDATE points and the payloads as a PLANNED test \
-set — never as confirmed findings. Write 4 short sections in Markdown: \
-1) Summary, 2) Scope & authorization, 3) Candidate injection points (a table), \
-4) Planned tests & coverage. Keep it factual and under ~300 words.
+PROMPT = """You are writing a concise web-application security-assessment report for a bounded, \
+authorized testing agent. Use ONLY the JSON facts provided — do not invent vulnerabilities, \
+CVEs, hosts, or numbers beyond what is listed, and do not contradict the counts. Key facts to \
+state correctly: `n_fired` payloads WERE fired at the target; `n_held` payloads were held by \
+the governance gate and NOT fired; `n_confirmed` are confirmed by a detection oracle. Keep each \
+finding's stated confidence (e.g. a reflected-XSS confirmed by reflection is NOT verified as \
+executing in a browser). Write these Markdown sections: 1) Summary (use the exact fired / held / \
+confirmed counts), 2) Scope & authorization, 3) Confirmed findings (a table: class, technique, \
+oracle, confidence), 4) Governance & caveats. Keep it factual and under ~300 words.
 
 JSON facts:
 {facts}
 """
 
-AI_LABEL = ("> **AI-generated (EU AI Act Art. 50).** This report was written by an "
-            "open-source LLM ({model}, run locally via Ollama) from the agent's "
-            "structured run data. No payload was fired; nothing here is a confirmed "
-            "vulnerability.\n")
+AI_LABEL = ("> **AI-generated (EU AI Act Art. 50).** The prose in this report was written by an "
+            "open-source LLM ({model}, run locally via HuggingFace transformers) from the agent's "
+            "structured run data. Findings are produced by deterministic detection oracles, not by "
+            "the model.\n")
 
 
-def generate_report(state, client: OllamaClient | None = None) -> str:
-    """Produce the Markdown report (LLM narration + deterministic facts + AI label)."""
-    client = client or OllamaClient()
+def generate_report(state: dict, client: HFClient | None = None) -> str:
+    client = client or HFClient()
     summary = build_run_summary(state)
-    import json
     try:
-        msg = client.chat([
-            {"role": "user", "content": PROMPT.format(facts=json.dumps(summary, indent=2))}
-        ])
-        narrative = (msg.get("content") or "").strip()
+        narrative = client.generate(PROMPT.format(facts=json.dumps(summary, indent=2))).strip()
     except LLMError as e:
         narrative = f"*(LLM report unavailable: {e})*"
-
     label = AI_LABEL.format(model=client.cfg.model)
     return f"{label}\n{narrative}\n\n---\n{_facts_block(summary)}\n"

@@ -1,12 +1,14 @@
-# Risk Assessment — Scanner Pipeline (Layers 1–3)
+# Risk Assessment — the Agent (Layers 1–7)
 
-**Scope.** The authorization → recon → selection pipeline (`main.py`). The baseline
-*model's* risk register is in `models/baseline.ipynb` §8; this is the system-level view.
-Framed with **NIST AI RMF (Map → Measure → Manage)**.
+**Scope.** The full LangGraph agent (`main.py`): authorize → recon → select → govern →
+execute → detect → report. The baseline *model's* risk register is in `models/baseline.ipynb`
+§8; this is the system-level view. Framed with **NIST AI RMF (Map → Measure → Manage)**.
 
-**Bounding fact.** Layers 1–3 **never fire a payload** — they stop at selection. That caps
-the blast radius: the only actions taken are reading config and reading the dataset. The
-serious risks below are about *what happens when execution is added* and about *scope*.
+**Bounding fact.** The agent now **fires payloads and confirms exploits**, but two controls
+cap the blast radius: **Layer 1** only authorises a loopback host on the allowlist (it cannot
+touch a third party), and **Layer 4** is an automated governance policy that flags every
+destructive payload in the audit (and, with `allow_destructive=False`, holds them by rule).
+The target is a self-owned, disposable sandbox — worst case is resetting it.
 
 ## MAP — identified risks
 | # | Risk | Likelihood | Impact | Evidence / note |
@@ -14,8 +16,8 @@ serious risks below are about *what happens when execution is added* and about *
 | P1 | **Scope escape** — scanning a host that isn't ours | Low | **Critical** (StGB §202a) | mitigated by `require_loopback` + allowlist + reject-by-default |
 | P2 | **Recon blind spots** — a crawl misses real injection points | ~~High~~ **Reduced** | Medium | recon is now a **live crawler** (logs in, parses forms + URL params on the running target), not a static profile. Residual: it only visits seed + menu-linked pages, so an unlinked endpoint is still a blind spot |
 | P3 | **Selection coverage gap** — techniques never fired → false "not vulnerable" | ~~High~~ **Reduced** | High | **mitigated:** selection now **stratifies by `type`**, so SQLi technique coverage went 3/6 → 5/6 (`union`/`error-based` now fired). Residual: `stacked-queries` unreachable — reclassified as a recon gap (P2), not selection bias (fairness §1) |
-| P4 | **Destructive payload reaches execution** | Medium | **High** | selection does **not** exclude destructive payloads — 0 were selected here only *incidentally* (bucket mismatch), not by design |
-| P5 | **Over-trust** — treating "selected" as "vulnerable" | Medium | Medium | selection ≠ confirmation; only the Layer-6 oracle proves a hit |
+| P4 | **Destructive payload is fired** | Medium | **High** (bounded) | execution is live; the gate fires destructive payloads on the sandbox but **flags** them in the audit. Bounded to a disposable loopback target; `allow_destructive=False` holds them by rule for a real engagement |
+| P5 | **Over-trust** — treating "fired" as "vulnerable" | Medium | Medium | firing ≠ confirmation; only a Layer-6 oracle marks a finding confirmed, with a confidence tier; unconfirmed ≠ safe |
 
 ## MEASURE — how each is checked
 - **P1:** authorization tested on out-of-scope inputs — `http://example.com` → rejected
@@ -23,8 +25,11 @@ serious risks below are about *what happens when execution is added* and about *
 - **P3:** coverage = unique-selected / available per class; techniques-selected vs available.
   After the stratify-by-`type` fix: **5 of 6 SQLi techniques** selected (was 3), the last one
   unreachable from the current injection points.
-- **P4:** count of `is_destructive` payloads that pass selection (currently 0, but **not
-  guaranteed** — must be enforced downstream).
+- **P4:** the gate reports approved-vs-flagged counts each run (`GateResult.summary()`), and
+  every fired destructive payload is recorded in the audit ledger. `allow_destructive=False`
+  verified to hold them by rule.
+- **P5:** oracle coverage is honest — 2 of 6 oracles are proven end-to-end on the sandbox
+  (`differential`, `browser_execution`), the rest need DVWA/infra (see `docs/oracles_explained.md`).
 
 ## MANAGE — mitigations
 - **P1** `require_loopback: true` hard guard + allowlist stored as reviewable data
@@ -37,14 +42,17 @@ serious risks below are about *what happens when execution is added* and about *
 - **P3** **done** — selection stratifies by `type` (`k_per_type=2`), so every *reachable*
   technique gets a slot (fairness §3); coverage is now printed per scan by `main.py`. Residual
   `stacked-queries` gap rolls up into **P2** (recon must expose a `form_field` SQLi point).
-- **P4** **do not enable execution before Layer 4 (governance gate)** — the gate must hold
-  every `is_destructive`/critical payload for human review *before* firing. Until then the
-  pipeline is intentionally selection-only.
+- **P4** **automated governance gate (Layer 4), no human in the loop** — the agent fires
+  autonomously, so the gate decides *by rule* (a person can't review a large, variable payload
+  count). On the authorized disposable sandbox it fires all payloads but **flags every
+  `is_destructive` one in the audit** for transparency; `allow_destructive=False` re-imposes a
+  rule-based hold for a real engagement. Firing is bounded to the loopback sandbox by Layer 1.
 - **P5** carry the `oracle` + confidence tier through to reporting; never label a target
   vulnerable without an oracle confirmation.
 
 ## Residual risk (accepted, documented)
-Because nothing is fired, present risk is low and dominated by **P3 (coverage)** — a real
-responsibility concern that a clean result may be an untested one. The gating rule going
-forward: **execution stays disabled until the governance gate (L4) and sandbox isolation
-are both in place.**
+Execution is now enabled, so the live risk is **firing destructive payloads at the target**
+(P4) — accepted because the target is a self-owned, disposable, loopback sandbox (worst case:
+reset it), destructive payloads are flagged in the audit, and `allow_destructive=False` is a
+one-flag switch for non-sandbox use. The other standing concern is **P3 (coverage)** — a clean
+result may just be an untested one.

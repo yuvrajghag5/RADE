@@ -2,10 +2,11 @@
 Tool framework for the agent (in-process).
 
 A Tool is a named capability the agent can invoke: it carries a machine-readable
-spec (name + description + JSON-schema input) and a run() function. The spec is
-deliberately in **Anthropic tool-use format**, so the exact same tools could be
-handed to an LLM policy later (hybrid-ready) — today they are called by the
-deterministic policy.
+spec (name + description + JSON-schema input) and a run() function. The
+**LangGraph** orchestrator (src/agent/graph.py) invokes these tools by name — one
+per layer — so the graph sequences and gates the *tools*, it does not inline the
+domain logic. The specs are also LLM-ready (tool-use format), which the optional
+LLM triage node uses to reason about the agent's capabilities.
 
 `ToolResult.ok` means "the tool executed" (no crash), NOT "the answer was yes".
 A rejection from the authorization tool is still `ok=True` with a Decision that

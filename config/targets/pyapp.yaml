@@ -11,7 +11,7 @@ crawl:
   # no login_path -> recon runs unauthenticated
   index_path: "/"
   seed_paths:
-    - "/sqli?id=1"
+    - "/sqli?user=admin"
     - "/xss?name=friend"
     - "/comment"
     - "/exec"

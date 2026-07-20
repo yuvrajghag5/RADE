@@ -1,96 +1,122 @@
 """
-The three Layer 1-3 capabilities, wrapped as agent Tools.
+The seven layers, each wrapped as an agent Tool.
 
-Each tool is a thin adapter over the existing layer function, plus a
-machine-readable spec. The agent never imports the layers directly — it only
-sees these tools through the registry, which is what lets the decision policy
-(rule-based today, LLM tomorrow) orchestrate them.
+The LangGraph orchestrator never imports the layers directly — it invokes these
+tools through the registry. That keeps the design honest to "an agent that
+orchestrates tools": the graph decides *when* each tool runs and *whether* it may
+(the governance gate, the branches); the tools are the *capabilities*.
 """
 from __future__ import annotations
 
 from src.authorization.authorize import authorize
-from src.recon.recon import discover, ReconError
+from src.recon.recon import discover, build_session, ReconError
 from src.intelligence.select import select_all
-from .tools import Tool, ToolResult
+from src.governance import govern
+from src.execution import baseline
+from src.detection import detect
+from .tools import Tool, ToolResult, ToolRegistry
+
+
+def finding_dict(point, payload, conf) -> dict:
+    return {
+        "point": point.name, "url": point.full_url, "method": point.method,
+        "param": point.param, "id": payload["id"],
+        "attack_class": payload["attack_class"], "type": payload["type"],
+        "payload": payload["payload"], "oracle": conf.oracle,
+        "confirmed": conf.confirmed, "confidence": conf.confidence,
+        "evidence": conf.evidence,
+    }
 
 
 class AuthorizeTool(Tool):
     name = "authorize"
-    description = (
-        "Layer 1 scope firewall. Decide whether a target URL may be scanned at "
-        "all: it is approved only if the host+port is on the allowlist and (when "
-        "required) is a loopback address. Always call this FIRST; if it rejects, "
-        "stop — nothing else may run."
-    )
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "target_url": {"type": "string", "description": "The target URL to authorize."}
-        },
-        "required": ["target_url"],
-    }
+    description = ("Layer 1 scope firewall. Approve a target URL only if its host+port is "
+                   "allowlisted and loopback. Always first; if it rejects, stop.")
+    input_schema = {"type": "object",
+                    "properties": {"target_url": {"type": "string"}},
+                    "required": ["target_url"]}
 
     def run(self, target_url: str) -> ToolResult:
         d = authorize(target_url)
-        verb = "approved" if d.approved else "rejected"
-        return ToolResult(ok=True, output=d, summary=f"{verb}: {d.reason}")
+        return ToolResult(ok=True, output=d,
+                          summary=("approved: " if d.approved else "rejected: ") + d.reason)
 
 
 class ReconTool(Tool):
     name = "recon"
-    description = (
-        "Layer 2 live reconnaissance. Crawl the AUTHORIZED target (log in if "
-        "needed, set security level, parse forms and URL parameters) and return "
-        "the injection points discovered. Only call this after authorize approves. "
-        "Fails (ok=False) if the target is unreachable."
-    )
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "target_url": {"type": "string", "description": "Authorized target base URL."},
-            "profile": {"type": "string", "description": "Crawl profile name (e.g. 'dvwa', 'pyapp')."},
-        },
-        "required": ["target_url"],
-    }
+    description = ("Layer 2 live reconnaissance. Crawl the authorized target and return the "
+                  "injection points discovered. Fails (ok=False) if unreachable.")
+    input_schema = {"type": "object",
+                    "properties": {"target_url": {"type": "string"}, "profile": {"type": "string"}},
+                    "required": ["target_url"]}
 
     def run(self, target_url: str, profile: str = "dvwa") -> ToolResult:
         try:
-            points = discover(target_url, profile)
+            pts = discover(target_url, profile)
         except ReconError as e:
             return ToolResult(ok=False, error=str(e), summary="recon failed")
-        return ToolResult(ok=True, output=points,
-                          summary=f"{len(points)} injection points discovered")
+        return ToolResult(ok=True, output=pts, summary=f"{len(pts)} injection points discovered")
 
 
-class SelectPayloadsTool(Tool):
+class SelectTool(Tool):
     name = "select_payloads"
-    description = (
-        "Layer 3 payload selection. For each discovered injection point, choose "
-        "payloads from the labelled arsenal, stratified by technique so no "
-        "technique is skipped. Returns (injection_point, [payloads]) pairs. Call "
-        "after recon has produced injection points."
-    )
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "points": {"type": "array", "description": "Injection points from recon."},
-            "k_per_type": {"type": "integer", "description": "Payloads per technique (default 2)."},
-        },
-        "required": ["points"],
-    }
+    description = ("Layer 3. For each injection point choose payloads from the arsenal, "
+                  "stratified by technique. Returns (point, [payloads]) pairs.")
+    input_schema = {"type": "object",
+                    "properties": {"points": {"type": "array"}, "k_per_type": {"type": "integer"}},
+                    "required": ["points"]}
 
     def run(self, points, k_per_type: int = 2) -> ToolResult:
-        selection = select_all(points, k_per_type=k_per_type)
-        total = sum(len(pl) for _, pl in selection)
-        return ToolResult(ok=True, output=selection,
-                          summary=f"{total} payloads across {len(points)} injection points")
+        sel = select_all(points, k_per_type=k_per_type)
+        total = sum(len(pl) for _, pl in sel)
+        return ToolResult(ok=True, output=sel,
+                          summary=f"{total} payloads across {len(points)} points")
 
 
-def build_registry():
-    """Register the Layer 1-3 tools and return the registry."""
-    from .tools import ToolRegistry
+class GovernTool(Tool):
+    name = "govern"
+    description = ("Layer 4 governance gate (automated policy, no human review). Approve "
+                  "payloads to fire autonomously; flag destructive ones for the audit. "
+                  "allow_destructive=False re-imposes an automatic hold; max_per_point caps volume.")
+    input_schema = {"type": "object",
+                    "properties": {"selection": {"type": "array"},
+                                   "allow_destructive": {"type": "boolean"},
+                                   "max_per_point": {"type": "integer"}},
+                    "required": ["selection"]}
+
+    def run(self, selection, allow_destructive: bool = True,
+            max_per_point: int | None = None) -> ToolResult:
+        gate = govern(selection, allow_destructive=allow_destructive, max_per_point=max_per_point)
+        return ToolResult(ok=True, output=gate, summary=gate.summary())
+
+
+class ExecuteDetectTool(Tool):
+    name = "execute_detect"
+    description = ("Layers 5-6. Fire each governance-approved payload at the target and confirm "
+                  "real exploits with the per-technique detection oracle.")
+    input_schema = {"type": "object",
+                    "properties": {"target_url": {"type": "string"}, "profile": {"type": "string"},
+                                   "approved": {"type": "array"}},
+                    "required": ["target_url", "approved"]}
+
+    def run(self, target_url: str, approved, profile: str = "dvwa") -> ToolResult:
+        session = build_session(target_url, profile)
+        base_cache: dict = {}
+        findings = []
+        for point, payload in approved:
+            if point.full_url not in base_cache:
+                base_cache[point.full_url] = baseline(session, point)
+            conf, _ = detect(session, point, payload, base_cache[point.full_url])
+            findings.append(finding_dict(point, payload, conf))
+        confirmed = sum(1 for f in findings if f["confirmed"] is True)
+        return ToolResult(ok=True, output=findings,
+                          summary=f"{len(findings)} fired, {confirmed} confirmed")
+
+
+def build_registry() -> ToolRegistry:
+    """Register one tool per layer and return the registry the graph orchestrates."""
     reg = ToolRegistry()
-    reg.register(AuthorizeTool())
-    reg.register(ReconTool())
-    reg.register(SelectPayloadsTool())
+    for tool in (AuthorizeTool(), ReconTool(), SelectTool(),
+                 GovernTool(), ExecuteDetectTool()):
+        reg.register(tool)
     return reg

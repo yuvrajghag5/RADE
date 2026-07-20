@@ -256,6 +256,27 @@ def _load_profile(profile: str) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def build_session(base_url: str, profile: str = "dvwa") -> requests.Session:
+    """A ready-to-use HTTP session for the target: logged in + security set when
+    the profile needs it (DVWA), or a plain session for a no-auth sandbox.
+
+    Shared by recon (Layer 2) and execution (Layer 5) so payloads are fired in
+    the same authenticated context the injection points were discovered in.
+    """
+    cfg = _load_profile(profile)
+    crawl = cfg.get("crawl") or {}
+    base = base_url.rstrip("/")
+    timeout = crawl.get("request_timeout", 10)
+    session = requests.Session()
+    # Auth is optional: a no-login sandbox (our Flask target) omits `login_path`.
+    if crawl.get("login_path"):
+        if crawl.get("auto_setup"):
+            _auto_setup(session, base, crawl, timeout)
+        _login(session, base, crawl, timeout)
+        _set_security(session, base, crawl, timeout)
+    return session
+
+
 def discover_live(base_url: str, profile: str = "dvwa") -> list[InjectionPoint]:
     """Log in, set security, crawl, and return the injection points actually found."""
     cfg = _load_profile(profile)
@@ -265,14 +286,7 @@ def discover_live(base_url: str, profile: str = "dvwa") -> list[InjectionPoint]:
     base = base_url.rstrip("/")
     timeout = crawl.get("request_timeout", 10)
 
-    session = requests.Session()
-    # Auth is optional: a no-login sandbox (e.g. our own Flask target) omits
-    # `login_path`, so recon skips the DVWA login/security/setup dance.
-    if crawl.get("login_path"):
-        if crawl.get("auto_setup"):
-            _auto_setup(session, base, crawl, timeout)
-        _login(session, base, crawl, timeout)
-        _set_security(session, base, crawl, timeout)
+    session = build_session(base_url, profile)
 
     # seed paths (always) + links auto-discovered from the index menu
     paths = list(crawl.get("seed_paths", []))

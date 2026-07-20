@@ -1,9 +1,9 @@
 # Run Guide — Offensive IT-Tester
 
-How to set up and run the agent on **macOS** and **Windows**. The agent does
-**authorize → live recon → payload selection** against a self-owned sandbox, logs every
-decision to a tamper-evident ledger, and (optionally) uses a local open-source LLM to
-orchestrate and to write a report. It **stops before firing** any attack payload.
+How to set up and run the agent on **macOS** and **Windows**. The agent walks all seven layers
+against a self-owned sandbox — **authorize → recon → select → governance gate → fire → confirm
+exploits → report** — logging every decision to a tamper-evident ledger, and (optionally) uses
+a local open-source LLM to prioritise targets and to write the report.
 
 > You run two things in two terminals: **(1)** a sandbox target app, and **(2)** the agent
 > pointed at it.
@@ -16,7 +16,7 @@ orchestrate and to write a report. It **stops before firing** any attack payload
 |---|---|---|
 | **Python 3.11+** | everything | `python --version` (Windows) / `python3 --version` (macOS) |
 | **Docker Desktop** | *optional* — the DVWA sandbox | only if you use Option B in step 2 |
-| **Ollama + `qwen2.5:7b`** | *optional* — the `--llm` / `--report` features | step 4 |
+| **HuggingFace model** | *optional* — the `--report` feature | auto-downloads on first use (step 4); no account/key |
 
 The built-in Flask sandbox (Option A) needs **none** of the optional items.
 
@@ -103,35 +103,36 @@ python main.py http://127.0.0.1:8080
 python main.py http://example.com
 ```
 
-You'll see the three layers run (authorization → live recon → payload selection) and a final
-`[AUDIT]` line confirming the ledger chain is intact.
+You'll see all layers run (authorization → live recon → selection → governance gate →
+execution → detection), the **confirmed exploits**, and a final `[AUDIT]` line confirming the
+ledger chain is intact.
 
 ---
 
-## 4. (Optional) Use the open-source LLM
+## 4. (Optional) Use the local open-source LLM
 
-Adds an LLM "brain" that orchestrates the tools, and an LLM-written report (Layer 7).
+Two features use a **local open-source model via HuggingFace transformers** (no API key,
+nothing leaves your machine):
+- **`--llm`** — an LLM **triage** decision node: the model re-prioritises the discovered
+  injection points by risk (bounded — the governance gate still enforces safety).
+- **`--report`** — Layer 7: the model writes a Markdown findings report into `reports/`.
 
-### 4a. Install Ollama and pull the model
+### 4a. Nothing to install separately
+`transformers` + `torch` were installed by `pip install -r requirements.txt` in step 1. The
+**model weights download automatically on first use** from the HuggingFace Hub (~3 GB, cached
+afterwards). The model is set in `config/llm.yaml` (default `Qwen/Qwen2.5-1.5B-Instruct`).
 
-- **macOS:** `brew install ollama` (or download from https://ollama.com), then it runs as a
-  service. **Windows:** download/install from https://ollama.com (runs automatically).
-- Pull the model (once):
-  ```bash
-  ollama pull qwen2.5:7b
-  ```
-- The model + endpoint are configured in `config/llm.yaml` (default
-  `qwen2.5:7b` on `http://localhost:11434`).
+> **Speed:** if `pip` installed CPU-only `torch`, the model runs on CPU (a minute or two). It
+> uses the GPU automatically if you have a CUDA build of `torch`. For a faster model, set e.g.
+> `Qwen/Qwen2.5-0.5B-Instruct` in `config/llm.yaml`.
 
-### 4b. Run with the LLM orchestrator and report
+### 4b. Run with the LLM
 ```bash
-python main.py http://127.0.0.1:5000 --llm --report
+python main.py http://127.0.0.1:5000 --llm            # LLM triage decision
+python main.py http://127.0.0.1:5000 --llm --report   # triage + findings report
 ```
-- `--llm` — the LLM chooses each next tool (bounded; falls back to the deterministic policy if
-  Ollama is unreachable).
-- `--report` — writes a Markdown run report into `reports/` (labelled AI-generated).
-
-You can use either flag alone, and against either sandbox.
+The report is labelled AI-generated (EU AI Act Art. 50) with a deterministic facts block. The
+first run is slow (model download + load); later runs are faster.
 
 ---
 
@@ -167,7 +168,8 @@ python -m preprocess.build_dataset
 | `Activate.ps1 … running scripts is disabled` (Windows) | `Set-ExecutionPolicy -Scope Process RemoteSigned`, then re-activate. |
 | DVWA shows a MySQL/database error | Use the `vulnerables/web-dvwa` image (step 2B) — it includes the database. |
 | `port is already allocated` (Docker) | Something else uses 8080. Stop it, or run DVWA on another allowlisted port (80 or 3000) and target that. |
-| `--llm` prints "Ollama not reachable" | Start Ollama and `ollama pull qwen2.5:7b`. Until then it safely falls back to the deterministic policy. |
+| `--report` is very slow / seems stuck | First run downloads (~3 GB) + loads the model, and runs on CPU. Wait a couple of minutes, or set a smaller model (`Qwen/Qwen2.5-0.5B-Instruct`) in `config/llm.yaml`. |
+| `stale server` / old results after editing the sandbox | A previous `python sandbox/target_app.py` is still holding the port. Stop it (close its terminal / `taskkill /F /IM python.exe` on Windows) and restart. |
 | `python: command not found` (macOS) | Use `python3` (and `python3 -m venv`). |
 
 ---
@@ -179,6 +181,6 @@ python -m preprocess.build_dataset
 python sandbox/target_app.py
 
 # terminal 2 — agent   (Windows: $env:PYTHONIOENCODING="utf-8" first)
-python main.py http://127.0.0.1:5000                 # deterministic
-python main.py http://127.0.0.1:5000 --llm --report  # LLM brain + report
+python main.py http://127.0.0.1:5000                  # full run: fire + confirm exploits
+python main.py http://127.0.0.1:5000 --llm --report   # + LLM triage decision + report
 ```

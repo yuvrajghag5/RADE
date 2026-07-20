@@ -16,8 +16,17 @@ requests>=2.31
 beautifulsoup4>=4.12
 
 # Self-owned live sandbox target (sandbox/target_app.py) — used when DVWA/Docker
-# is unavailable; recon crawls it exactly like DVWA.
+# is unavailable; recon crawls it exactly like DVWA. Also the Layer-5 execution target.
 flask>=3.0
+
+# Agent orchestration (src/agent/graph.py) — LangGraph state machine over the 7 layers
+langgraph>=0.2
+
+# Layer 7 report — open-source LLM run locally via HuggingFace transformers.
+# torch is CPU-only by default; for GPU install a CUDA build of torch separately.
+transformers>=4.44
+torch>=2.2
+accelerate>=0.33
 
 # Notebooks — preprocess/analysis.ipynb and models/baseline.ipynb
 notebook>=7.0
