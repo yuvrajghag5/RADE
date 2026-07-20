@@ -151,8 +151,8 @@ Prints `(True, 'chain intact')` if nothing was edited.
 All tests live in a single notebook, **`unit_test.ipynb`** — one section per layer, each asking
 the single most important question about a weakness that layer could have (scope-firewall
 bypass, selection collapsing to one technique, hidden destructive payloads, calling an
-unconfirmed result "safe", a faked confirmation, audit tampering, and model evasion). It starts
-the sandbox itself.
+unconfirmed result "safe", missing a real exploit, **falsely confirming one that isn't real**,
+and model evasion). It starts the sandbox itself.
 
 Open it and **Run All** (kernel: *RADE (.venv)*), or run headless:
 ```bash
