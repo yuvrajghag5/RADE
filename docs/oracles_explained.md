@@ -176,19 +176,27 @@ input back**, specifically so no oracle can *falsely* confirm them.
 
 ## Coverage: built vs. verified
 
-| Oracle | Built (real code)? | Verified end-to-end? | Notes |
+| Oracle | Built (real code)? | Verified end-to-end? | Where / notes |
 |---|---|---|---|
-| `differential` | ✅ | ✅ **proven** | SQLi, no caveats |
-| `browser_execution` | ✅ | ✅ **proven (reflection, caveated)** | full JS-execution proof needs a browser |
-| `error_signature` | ✅ | ▲ works on a SQL-backed point / DVWA | real MySQL error on DVWA |
-| `timing` | ✅ | ▲ needs a real DB (DVWA/MySQL) | SQLite can't sleep |
-| `marker_reflection` | ✅ | ▲ real on DVWA command-exec | echoes real command output |
+| `differential` | ✅ | ✅ **proven** | Flask sandbox — true/false SQLi diverges, no caveats |
+| `browser_execution` | ✅ | ✅ **proven (reflection, caveated)** | Flask + DVWA — reflected/stored XSS; full JS-run needs a browser |
+| `error_signature` | ✅ | ✅ **proven** | **live DVWA (MySQL)** — real "you have an error in your SQL" on error-based SQLi |
+| `timing` | ✅ | ▲ not triggered on DVWA | the arsenal's blind payloads use `--`/`pg_sleep` (wrong comment style / PostgreSQL); MySQL didn't sleep → correctly not confirmed |
+| `marker_reflection` | ✅ | ▲ guarded | now suppressed on echo-everything pages to avoid a false positive; a true union/CMDi marker oracle needs data/command-output checking |
 | `out_of_band` | ✖ stub | ✖ | needs a callback server |
 
-**5 of 6 oracles are implemented; 2 are proven end-to-end on a self-owned sandbox;
-the rest need infrastructure a local sandbox can't provide.** Choosing to prove a
-few things truthfully — and to mark the rest "not demonstrated" rather than fake a
-confirmation — is the responsible-security judgement the project is built around.
+**3 of 6 oracles are now proven end-to-end** (`differential`, `browser_execution`,
+`error_signature`), across the Flask sandbox *and* live DVWA. The rest are implemented but
+either need infrastructure a local run can't provide (`out_of_band`) or were correctly *not*
+confirmed because the specific arsenal payloads don't match the target's DBMS/context.
+
+### What live DVWA taught us (an honest, important finding)
+Firing the full arsenal at real DVWA, only the payloads that genuinely fit **MySQL + a
+string-context injection** confirmed (error-based SQLi, reflected/stored XSS). Blind-time
+payloads like `' OR SLEEP(5)--` (MySQL needs `-- ` *with a space*) and `' OR pg_sleep(4)#`
+(PostgreSQL, not MySQL) **did not** — and that's the tool being **honest**: it fires everything
+but confirms only what actually works, never assuming an exploit from the payload alone. This is
+exactly why you fire *many* payloads (coverage) and rely on an oracle to tell you which landed.
 
 ---
 
