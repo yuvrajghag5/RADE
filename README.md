@@ -31,7 +31,7 @@ and accountability around the whole thing.
 | **Layers 1–3: authorization → LIVE recon → payload selection** | ✅ **done** |
 | **Layer 4: governance gate** — automated policy (fires autonomously, flags destructive) (`src/governance/`) | ✅ **done** |
 | **Layers 5–6: execution → detection** — fire payloads, confirm real exploits (`src/execution`, `src/detection`) | ✅ **done** |
-| **Layer 7: report** — open-source LLM (HuggingFace `Qwen2.5-3B`) writes findings | ✅ **done** |
+| **Layer 7: report** — open-source LLM (HuggingFace `Qwen2.5-1.5B`) writes findings | ✅ **done** |
 | Live sandbox target (`sandbox/target_app.py`) + live crawler | ✅ **done** |
 | Detection oracles: **3 of 6 proven** (`differential`, `browser_execution`, `error_signature`) across Flask + **live DVWA** | ✅ **proven** |
 | **Tests** — single weakness-detection notebook (`unit_test.ipynb`), one key question per layer | ✅ **done** |
@@ -201,7 +201,7 @@ RADE/
    so the agent never fires when it shouldn't. Working memory is `RunState`; every node appends
    to a **tamper-evident audit ledger** (`AuditLog.verify()` detects any edit).
 3. **The LLM makes a real (bounded) decision.** With `--llm`, a **triage node** hands the
-   discovered injection points to a local open-source model (`Qwen2.5-3B-Instruct` via
+   discovered injection points to a local open-source model (`Qwen2.5-1.5B-Instruct` via
    HuggingFace) which **re-prioritises them by assessed risk** — genuine model-driven agency.
    It is bounded: the model can reorder but not drop points, and the **automated governance
    policy** (not the model) still decides what fires and flags every destructive payload
@@ -288,7 +288,7 @@ python main.py http://example.com                # authorization gate REJECTS (o
 python main.py http://127.0.0.1:8080             # DVWA (needs DVWA running in Docker)
 ```
 
-`--report` uses a local open-source model (`Qwen2.5-3B-Instruct` via HuggingFace
+`--report` uses a local open-source model (`Qwen2.5-1.5B-Instruct` via HuggingFace
 transformers); the weights auto-download on first use (see `config/llm.yaml`).
 
 **What each layer does**
@@ -395,8 +395,8 @@ auto-downloaded). See `requirements.txt`.
    rate limit, before anything is fired.
 5. **Execution + detection (Layers 5–6)** — ✅ fires approved payloads and confirms real exploits
    with per-technique oracles (`error_signature`, `differential`, `marker_reflection`, `timing`).
-6. **Reporting (Layer 7)** — ✅ local open-source LLM (HuggingFace `Qwen2.5-3B`) writes the
-   findings report; Art. 50 label + deterministic facts block.
+6. **Reporting (Layer 7)** — ✅ local open-source LLM (HuggingFace `Qwen2.5-1.5B`) writes the
+   findings report; Art. 50 label + a deterministic findings appendix.
 
 **Next (designed, not built):**
 - `browser_execution` oracle (headless browser) and `out_of_band` oracle (callback server) — the

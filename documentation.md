@@ -151,10 +151,13 @@ The heart of "verify exploitation" — see [§5](#5-detection-oracles--verifying
 
 ### Layer 7 — Report (`src/reporting/report.py`)
 A local open-source LLM turns the run's structured facts into a plain-prose findings report:
-**Summary, Scope & Authorisation, Confirmed Vulnerabilities, Recommendations**. It is instructed to
-talk only about the vulnerabilities and how to fix them — not the testing method — and to use no
-Markdown. The findings themselves come from the deterministic oracles; the model only narrates.
-The report carries an EU AI Act Art. 50 "AI-generated" label.
+**Executive Summary, Scope & Authorisation, Summary of Findings, Detailed Findings** (one entry per
+confirmed vulnerability, with its severity and exact location — HTTP method, parameter, endpoint),
+**Recommendations, and a Conclusion**. It is instructed to talk only about the vulnerabilities and
+how to fix them — not the testing method — and to use no Markdown. The findings themselves come from
+the deterministic oracles; the model only narrates. A deterministic ground-truth table (Appendix A)
+is appended verbatim after the prose, so the exact counts and locations are always present even if
+the narration phrases things loosely. The report carries an EU AI Act Art. 50 "AI-generated" label.
 
 ---
 

@@ -119,13 +119,13 @@ nothing leaves your machine):
 
 ### 4a. Nothing to install separately
 `transformers` + `torch` were installed by `pip install -r requirements.txt` in step 1. The
-**model weights download automatically on first use** from the HuggingFace Hub (~6 GB for the
-default 3B, cached afterwards). The model is set in `config/llm.yaml` (default
-`Qwen/Qwen2.5-3B-Instruct`).
+**model weights download automatically on first use** from the HuggingFace Hub (~1.5 GB for the
+default 1.5B, cached afterwards). The model is set in `config/llm.yaml` (default
+`Qwen/Qwen2.5-1.5B-Instruct`).
 
-> **Model choice:** on CPU-only `torch`, 3B runs at a readable streaming pace on 15 GB RAM. For
-> higher quality use `Qwen/Qwen2.5-7B-Instruct` (slower on CPU — pairs best with a CUDA build of
-> torch for the GPU); for a lighter/faster run use `Qwen/Qwen2.5-1.5B-Instruct`. Just change the
+> **Model choice:** the default `Qwen/Qwen2.5-1.5B-Instruct` fits a 4 GB GPU in fp16 and streams
+> in seconds; on CPU it still runs but takes minutes. For an even lighter/faster run use
+> `Qwen/Qwen2.5-0.5B-Instruct`; larger models (3B+) need more than 4 GB of VRAM. Just change the
 > `model:` line in `config/llm.yaml`.
 
 ### 4b. Run with the LLM
@@ -133,8 +133,8 @@ default 3B, cached afterwards). The model is set in `config/llm.yaml` (default
 python main.py http://127.0.0.1:5000 --llm            # LLM triage decision
 python main.py http://127.0.0.1:5000 --llm --report   # triage + findings report
 ```
-The report is labelled AI-generated (EU AI Act Art. 50) with a deterministic facts block. The
-first run is slow (model download + load); later runs are faster.
+The report is labelled AI-generated (EU AI Act Art. 50) and ends with a deterministic findings
+appendix. The first run is slow (model download + load); later runs are faster.
 
 ---
 
@@ -206,7 +206,7 @@ python -m preprocess.build_dataset
 | `Activate.ps1 … running scripts is disabled` (Windows) | `Set-ExecutionPolicy -Scope Process RemoteSigned`, then re-activate. |
 | DVWA shows a MySQL/database error | Use the `vulnerables/web-dvwa` image (step 2B) — it includes the database. |
 | `port is already allocated` (Docker) | Something else uses 8080. Stop it, or run DVWA on another allowlisted port (80 or 3000) and target that. |
-| `--report` is very slow / seems stuck | First run downloads (~3 GB) + loads the model, and runs on CPU. Wait a couple of minutes, or set a smaller model (`Qwen/Qwen2.5-0.5B-Instruct`) in `config/llm.yaml`. |
+| `--report` is very slow / seems stuck | First run downloads (~1.5 GB) + loads the model; on CPU it runs slowly. Wait a couple of minutes, or set a smaller model (`Qwen/Qwen2.5-0.5B-Instruct`) in `config/llm.yaml`. |
 | `stale server` / old results after editing the sandbox | A previous `python sandbox/target_app.py` is still holding the port. Stop it (close its terminal / `taskkill /F /IM python.exe` on Windows) and restart. |
 | `python: command not found` (macOS) | Use `python3` (and `python3 -m venv`). |
 
