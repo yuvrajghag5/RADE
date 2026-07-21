@@ -1,4 +1,9 @@
-.venv
+.venv311
 __pycache__
 audit/          # generated tamper-evident run ledger (audit.jsonl)
 reports/        # generated LLM run reports
+.pytest_cache
+.vscode
+.claude
+.gitignore
+

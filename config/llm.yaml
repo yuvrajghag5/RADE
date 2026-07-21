@@ -7,6 +7,11 @@
 # HuggingFace Hub on first use and cached.
 # ---------------------------------------------------------------------------
 provider: "huggingface"
-model: "Qwen/Qwen2.5-1.5B-Instruct"   # small instruct model; runs on CPU or GPU
-max_new_tokens: 500
-temperature: 0.3
+model: "Qwen/Qwen2.5-1.5B-Instruct"     # fits a 4 GB GPU in fp16 (fast). 3B needs >4 GB VRAM /
+#                                       ~12 GB CPU RAM — it freezes this box, so avoid it.
+#                                       CPU-only + still slow? drop to Qwen2.5-0.5B-Instruct.
+max_new_tokens: 1024                    # room for the full audit report (~450-650 words of prose);
+#                                       higher = proportionally slower generation. The deterministic
+#                                       findings appendix is appended after the prose, so it is never
+#                                       lost to truncation even if the model runs to this ceiling.
+temperature: 0.1

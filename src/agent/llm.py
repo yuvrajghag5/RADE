@@ -44,23 +44,51 @@ class HFClient:
     """Lazy wrapper over a transformers text-generation pipeline."""
 
     def __init__(self, config: LLMConfig | None = None):
+        import threading
         self.cfg = config or LLMConfig.load()
         self._pipe = None
+        self._lock = threading.Lock()   # so a pre-warm thread + the report thread
+        #                                 don't load the model twice at once
 
     def _ensure(self):
         if self._pipe is not None:
             return
-        try:
-            import torch
-            from transformers import pipeline
-            self._pipe = pipeline(
-                "text-generation",
-                model=self.cfg.model,
-                torch_dtype=(torch.float16 if torch.cuda.is_available() else torch.float32),
-                device_map="auto" if torch.cuda.is_available() else None,
-            )
-        except Exception as e:
-            raise LLMError(f"could not load HF model {self.cfg.model!r}: {e}") from e
+        with self._lock:                 # second caller waits, then sees it's loaded
+            if self._pipe is not None:
+                return
+            try:
+                import torch
+                from transformers import pipeline
+                self._pipe = pipeline(
+                    "text-generation",
+                    model=self.cfg.model,
+                    torch_dtype=(torch.float16 if torch.cuda.is_available() else torch.float32),
+                    device_map="auto" if torch.cuda.is_available() else None,
+                )
+            except Exception as e:
+                raise LLMError(f"could not load HF model {self.cfg.model!r}: {e}") from e
+
+    def stream(self, prompt: str, system: str | None = None):
+        """Yield generated text chunks as the model produces them (for a live UI)."""
+        self._ensure()
+        from threading import Thread
+        from transformers import TextIteratorStreamer
+        tok = self._pipe.tokenizer
+        model = self._pipe.model
+        messages = ([{"role": "system", "content": system}] if system else []) + \
+                   [{"role": "user", "content": prompt}]
+        prompt_text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tok(prompt_text, return_tensors="pt").to(model.device)
+        streamer = TextIteratorStreamer(tok, skip_prompt=True, skip_special_tokens=True)
+        kwargs = dict(**inputs, max_new_tokens=self.cfg.max_new_tokens,
+                      do_sample=self.cfg.temperature > 0, pad_token_id=tok.eos_token_id,
+                      streamer=streamer)
+        if self.cfg.temperature > 0:
+            kwargs["temperature"] = self.cfg.temperature
+        Thread(target=model.generate, kwargs=kwargs, daemon=True).start()
+        for text in streamer:
+            if text:
+                yield text
 
     def generate(self, prompt: str, system: str | None = None) -> str:
         self._ensure()

@@ -30,11 +30,17 @@ class FireResult:
 
 
 def fire(session: requests.Session, point, value: str, timeout: int = 10) -> FireResult:
-    """Send `value` in `point.param` to `point.full_url` and capture the response."""
+    """Send `value` in `point.param` to `point.full_url` and capture the response.
+
+    The whole form is submitted: the payload goes in `point.param`, and any companion
+    fields recon captured (e.g. a Submit button) ride along in `point.extra` — without
+    them, targets like DVWA never run the vulnerable code path.
+    """
+    fields = {**getattr(point, "extra", {}), point.param: value}
     if point.method == "GET":
-        kwargs = {"params": {point.param: value}}
+        kwargs = {"params": fields}
     else:
-        kwargs = {"data": {point.param: value}}
+        kwargs = {"data": fields}
     t0 = time.perf_counter()
     try:
         r = session.request(point.method, point.full_url, timeout=timeout,

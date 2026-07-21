@@ -22,6 +22,7 @@ def finding_dict(point, payload, conf) -> dict:
         "point": point.name, "url": point.full_url, "method": point.method,
         "param": point.param, "id": payload["id"],
         "attack_class": payload["attack_class"], "type": payload["type"],
+        "severity": payload.get("severity"),
         "payload": payload["payload"], "oracle": conf.oracle,
         "confirmed": conf.confirmed, "confidence": conf.confidence,
         "evidence": conf.evidence,

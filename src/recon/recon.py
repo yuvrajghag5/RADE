@@ -48,6 +48,8 @@ class InjectionPoint:
     bucket: str        # normalised bucket (matches dataset context_bucket)
     classes: list      # attack classes worth trying here
     source: str = "live"   # "live" (crawled) or "profile" (declared)
+    extra: dict = field(default_factory=dict)  # companion form fields to submit
+    #                                             alongside the payload (e.g. Submit=Submit)
 
     def short(self) -> str:
         return f"{self.method:4} {self.full_url}?{self.param}=  [{self.bucket}]"
@@ -238,14 +240,33 @@ def _points_on_page(session, base, path, timeout) -> list[InjectionPoint]:
         target = raw_action if raw_action not in (None, "", "#") else path
         action_url = urljoin(page_url, target).split("#", 1)[0].split("?", 1)[0]
         action_path = urlparse(action_url).path
+
+        # collect every named field + a value to submit for it. The whole form must
+        # be submitted (e.g. DVWA only runs the query when its Submit button is set),
+        # so non-injected fields become `extra` companions sent with each payload.
+        all_fields, injectable = {}, []
         for inp in form.find_all(["input", "textarea"]):
-            itype = (inp.get("type") or "text").lower()
             name = inp.get("name")
-            if not name or itype in SKIP_INPUT_TYPES or name.lower() in SKIP_NAMES:
+            if not name:
                 continue
+            itype = (inp.get("type") or ("textarea" if inp.name == "textarea" else "text")).lower()
+            val = inp.get("value") or ""
+            if itype in ("file", "reset"):
+                continue
+            if itype in ("submit", "button", "image"):
+                all_fields[name] = val or "Submit"                 # e.g. Submit=Submit
+            elif itype in ("hidden", "checkbox", "radio") or name.lower() in SKIP_NAMES:
+                all_fields[name] = val                             # keep CSRF token etc.
+            else:
+                all_fields[name] = val or "test"                   # injectable text/textarea
+                injectable.append(name)
+
+        for name in injectable:
             bucket, classes = classify(action_path, name, method)
+            extra = {k: v for k, v in all_fields.items() if k != name}
             points.append(InjectionPoint(_vuln_dir(action_path) or "root",
-                                         action_url, method, name, bucket, classes))
+                                         action_url, method, name, bucket, classes,
+                                         extra=extra))
     return points
 
 

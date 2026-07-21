@@ -1,36 +1,49 @@
-# ── Offensive IT-Tester — dependencies ───────────────────────────────
-# Pinned to lower bounds; tested on Python 3.11+.
+# ══ Offensive IT-Tester — dependencies ═══════════════════════════════════════
+# Use Python 3.11 or 3.12 (they have CUDA torch wheels; Python 3.14 does NOT).
+#
+#   py -3.11 -m venv .venv311
+#   .venv311\Scripts\activate            # Windows  (source .venv311/bin/activate on macOS)
+#
+# ┌─ GPU install (recommended — NVIDIA card) ─────────────────────────────────┐
+# │  1) install the CUDA build of torch FIRST (driver 12.x/13.x -> cu124):     │
+# │       pip install torch --index-url https://download.pytorch.org/whl/cu124 │
+# │  2) then the rest:                                                          │
+# │       pip install -r requirements.txt                                       │
+# │  verify: python -c "import torch; print(torch.cuda.is_available())" -> True │
+# │  (4 GB VRAM fits Qwen2.5-1.5B in fp16; keep that model — 3B needs >4 GB.)   │
+# └────────────────────────────────────────────────────────────────────────────┘
+#
+#   CPU-only: skip step 1 — just `pip install -r requirements.txt` (pulls CPU torch;
+#   reports are slow, so set model: Qwen/Qwen2.5-0.5B-Instruct in config/llm.yaml).
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Data pipeline (preprocess/) + baseline model (models/)
+# ── Data pipeline (preprocess/) + baseline model (models/) ──
 pandas>=2.0
 numpy>=1.26
 scikit-learn>=1.3
 matplotlib>=3.7
-joblib>=1.3            # persist trained models -> models/*.pkl
+joblib>=1.3
 
-# Config + Layer 1 (authorization) + Layer 2 recon profiles
+# ── Config + Layer 1 (authorize) + Layer 2 (live recon) + Layer 5 (execution) ──
 PyYAML>=6.0
-
-# Layer 2 (reconnaissance) — LIVE crawler (required: recon logs in + crawls the target)
 requests>=2.31
 beautifulsoup4>=4.12
 
-# Self-owned live sandbox target (sandbox/target_app.py) — used when DVWA/Docker
-# is unavailable; recon crawls it exactly like DVWA. Also the Layer-5 execution target.
+# ── Self-owned sandbox target (sandbox/) + Web UI (webui.py) ──
+# (Flask installs Werkzeug, used by the sandbox test server too)
 flask>=3.0
 
-# Agent orchestration (src/agent/graph.py) — LangGraph state machine over the 7 layers
+# ── Agent orchestration (src/agent/graph.py) ──
 langgraph>=0.2
 
-# Layer 7 report — open-source LLM run locally via HuggingFace transformers.
-# torch is CPU-only by default; for GPU install a CUDA build of torch separately.
-transformers>=4.44
+# ── Layer 7 report — local open-source LLM via HuggingFace ──
+# torch: installed from the CUDA index above for GPU; on CPU this pulls the CPU build.
 torch>=2.2
+transformers>=4.44
 accelerate>=0.33
 
-# Notebooks — preprocess/analysis.ipynb and models/baseline.ipynb
+# ── Notebooks (baseline.ipynb, unit_test.ipynb, demo_walkthrough.ipynb) ──
 notebook>=7.0
-ipykernel>=6.25        # kernel that executes the notebook cells
-nbformat>=5.9          # read/write notebooks
-nbconvert>=7.0         # execute notebooks programmatically
-# (tests are a single notebook, unit_test.ipynb — no extra deps)
+ipykernel>=6.25
+nbformat>=5.9
+nbconvert>=7.0

@@ -21,7 +21,7 @@ confirmed=None with the reason / infrastructure they would need):
 from __future__ import annotations
 from dataclasses import dataclass
 
-from src.execution.execute import fire, FireResult
+from src.execution.execute import fire, FireResult, BENIGN_VALUE
 
 # substrings that betray a database error surfacing to the response
 SQL_ERROR_SIGNS = [
@@ -49,14 +49,20 @@ def _error_signature(baseline: FireResult, attack: FireResult) -> Confirmation:
     return Confirmation(False, "error_signature", "none", "no new DB error in the response")
 
 
-def _marker_reflection(attack: FireResult) -> Confirmation:
-    # the payload itself is the marker: if it comes back verbatim (unescaped), the
-    # input reaches the output without sanitisation.
+def _marker_reflection(attack: FireResult, baseline: FireResult) -> Confirmation:
+    # marker_reflection means the BACKEND returned a planted marker (union data,
+    # command echo) — NOT that the page merely echoes its input. If a benign value
+    # is already reflected in the baseline, this page reflects everything, so a
+    # reflected payload proves nothing here (that's a reflected-XSS signal, not a
+    # backend marker) — avoid the false positive.
+    if BENIGN_VALUE in baseline.text:
+        return Confirmation(False, "marker_reflection", "none",
+                            "page echoes all input — reflection is not a backend-marker signal here")
     marker = attack.payload
     if marker and marker in attack.text:
         return Confirmation(True, "marker_reflection", "high",
-                            "payload reflected unescaped in the response (injection point confirmed)")
-    return Confirmation(False, "marker_reflection", "none", "payload not reflected unescaped")
+                            "planted marker returned by the backend (beyond mere input echo)")
+    return Confirmation(False, "marker_reflection", "none", "marker not returned by the backend")
 
 
 def _false_variant(payload: str) -> str | None:
@@ -123,7 +129,7 @@ def detect(session, point, payload_row: dict, baseline: FireResult) -> tuple[Con
     if oracle == "error_signature":
         conf = _error_signature(baseline, attack)
     elif oracle == "marker_reflection":
-        conf = _marker_reflection(attack)
+        conf = _marker_reflection(attack, baseline)
     elif oracle == "differential":
         conf = _differential(session, point, attack)
     elif oracle == "timing":

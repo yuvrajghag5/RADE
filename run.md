@@ -119,12 +119,14 @@ nothing leaves your machine):
 
 ### 4a. Nothing to install separately
 `transformers` + `torch` were installed by `pip install -r requirements.txt` in step 1. The
-**model weights download automatically on first use** from the HuggingFace Hub (~3 GB, cached
-afterwards). The model is set in `config/llm.yaml` (default `Qwen/Qwen2.5-1.5B-Instruct`).
+**model weights download automatically on first use** from the HuggingFace Hub (~6 GB for the
+default 3B, cached afterwards). The model is set in `config/llm.yaml` (default
+`Qwen/Qwen2.5-3B-Instruct`).
 
-> **Speed:** if `pip` installed CPU-only `torch`, the model runs on CPU (a minute or two). It
-> uses the GPU automatically if you have a CUDA build of `torch`. For a faster model, set e.g.
-> `Qwen/Qwen2.5-0.5B-Instruct` in `config/llm.yaml`.
+> **Model choice:** on CPU-only `torch`, 3B runs at a readable streaming pace on 15 GB RAM. For
+> higher quality use `Qwen/Qwen2.5-7B-Instruct` (slower on CPU — pairs best with a CUDA build of
+> torch for the GPU); for a lighter/faster run use `Qwen/Qwen2.5-1.5B-Instruct`. Just change the
+> `model:` line in `config/llm.yaml`.
 
 ### 4b. Run with the LLM
 ```bash
@@ -133,6 +135,25 @@ python main.py http://127.0.0.1:5000 --llm --report   # triage + findings report
 ```
 The report is labelled AI-generated (EU AI Act Art. 50) with a deterministic facts block. The
 first run is slow (model download + load); later runs are faster.
+
+---
+
+## 4c. (Optional) The Web UI — live attack console
+
+A browser UI that runs the whole agent and shows it working in real time: each tool call, the
+confirmed exploits as they're found, and the Layer-7 report **streaming in token-by-token**.
+
+```bash
+python webui.py            # serves http://127.0.0.1:7000
+```
+Open **http://127.0.0.1:7000**, make sure a target is running (the Flask sandbox on `:5000` or
+DVWA on `:8080`), enter its URL, and hit **Attack**. The pipeline animates layer-by-layer, each
+tool call and confirmed exploit appears live, and the Layer-7 report streams in token-by-token.
+The scope firewall still applies — only allowlisted loopback targets are accepted.
+
+> The UI **loads the model once at startup** — `python webui.py` prints `LLM ready` after the
+> load (~30s; the first ever run also downloads the model). After that, **every attack streams
+> the report instantly**, with no per-attack wait.
 
 ---
 
