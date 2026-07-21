@@ -3,10 +3,7 @@
 A complete reference for the project: what it is, how every layer works, the architecture,
 the data and model, the tooling, and the responsible-AI controls that make it defensible.
 
-> This is the deep-dive. For *running* it, see [`run.md`](run.md). For the detection oracles in
-> detail see [`docs/oracles_explained.md`](docs/oracles_explained.md); for risk/fairness see
-> [`docs/risk_assessment.md`](docs/risk_assessment.md) and
-> [`docs/fairness_evaluation.md`](docs/fairness_evaluation.md); for the dataset see
+> This is the deep-dive. For *running* it, see [`run.md`](run.md). For the dataset see
 > [`data/processed/DATA_CARD.md`](data/processed/DATA_CARD.md).
 
 ---
@@ -176,20 +173,19 @@ Payloads map many-to-few onto oracles: hundreds of payloads produce only a handf
 evidence*. SQL injection alone spans four oracles (differential/timing/error_signature/
 marker_reflection) depending on the technique.
 
-| Oracle | Confirms by | Status |
-|---|---|---|
-| `differential` | true-vs-false condition responses diverge | ✅ **proven** (Flask) |
-| `error_signature` | a DB error appears that the baseline lacked | ✅ **proven** (live DVWA / MySQL) |
-| `browser_execution` | payload reflected unescaped into HTML (reflected-XSS candidate) | ✅ **proven** (Flask + DVWA) |
-| `timing` | response delayed far beyond baseline (`SLEEP`) | ▲ built; needs DBMS-matching payloads |
-| `marker_reflection` | a backend-returned marker (not mere input echo) | ▲ built; guarded against echo-page false positives |
-| `out_of_band` | a callback reaches a server you control | ✖ stub — needs a collaborator server |
+| Oracle | Confirms by |
+|---|---|
+| `differential` | true-vs-false condition responses diverge |
+| `error_signature` | a DB error appears that the baseline lacked |
+| `browser_execution` | payload reflected unescaped into HTML (reflected-XSS candidate) |
+| `timing` | response delayed far beyond baseline (`SLEEP`) |
+| `marker_reflection` | a backend-returned marker (not mere input echo) |
+| `out_of_band` | a callback reaches a server you control |
 
 **Honest by design.** When no oracle can confirm, the tool does **not** report "safe" — the finding
 is left unconfirmed. A stub oracle returns `None` (unproven), never `False` (secure). And on live
 DVWA, blind/tautology payloads that target the *wrong* DBMS/comment style (`SLEEP--`, `pg_sleep`)
-correctly **did not** confirm — the tool confirms only what actually works. Full walkthrough:
-[`docs/oracles_explained.md`](docs/oracles_explained.md).
+correctly **did not** confirm — the tool confirms only what actually works.
 
 ---
 
@@ -363,7 +359,6 @@ RADE/
 │   ├── detection/oracles.py        # L6
 │   └── reporting/report.py         # L7
 │
-├── docs/                         # oracles_explained.md, risk_assessment.md, fairness_evaluation.md
 ├── unit_test.ipynb               # weakness-detection tests
 ├── demo_walkthrough.ipynb        # layer-by-layer presentation
 ├── audit/audit.jsonl             # generated tamper-evident ledger (git-ignored)

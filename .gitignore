@@ -1,9 +1,32 @@
-.venv311
-__pycache__
-audit/          # generated tamper-evident run ledger (audit.jsonl)
-reports/        # generated LLM run reports
-.pytest_cache
-.vscode
-.claude
-.gitignore
+# Python bytecode / build
+__pycache__/
+*.py[cod]
+*.egg-info/
 
+# Virtual environments
+.venv/
+.venv311/
+venv/
+env/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+
+# Editors / IDEs
+.vscode/
+.idea/
+
+# Claude Code / local agent config
+.claude/
+
+# Generated at runtime (not source) — the app recreates these on each run
+audit/
+reports/
+
+# OS cruft
+.DS_Store
+Thumbs.db

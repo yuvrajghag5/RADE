@@ -33,7 +33,7 @@ and accountability around the whole thing.
 | **Layers 5–6: execution → detection** — fire payloads, confirm real exploits (`src/execution`, `src/detection`) | ✅ **done** |
 | **Layer 7: report** — open-source LLM (HuggingFace `Qwen2.5-3B`) writes findings | ✅ **done** |
 | Live sandbox target (`sandbox/target_app.py`) + live crawler | ✅ **done** |
-| Detection oracles: **3 of 6 proven** (`differential`, `browser_execution`, `error_signature`) across Flask + **live DVWA** | ✅ **see [`docs/oracles_explained.md`](docs/oracles_explained.md)** |
+| Detection oracles: **3 of 6 proven** (`differential`, `browser_execution`, `error_signature`) across Flask + **live DVWA** | ✅ **proven** |
 | **Tests** — single weakness-detection notebook (`unit_test.ipynb`), one key question per layer | ✅ **done** |
 | **Web UI** — live attack console (`webui.py`): streams each tool call, findings, and a token-by-token report | ✅ **done** |
 
@@ -128,7 +128,7 @@ by repetition; low = unconfirmed → flagged for manual review, never auto-claim
 > (real MySQL error-based SQLi on DVWA), and `browser_execution` (reflected/stored XSS,
 > reflection-based). Against DVWA the arsenal's blind/tautology payloads did **not** confirm
 > because they target the wrong DBMS/comment style — the tool honestly confirms only what
-> actually works. Full walkthrough + built-vs-verified table: **[`docs/oracles_explained.md`](docs/oracles_explained.md)**.
+> actually works.
 
 ---
 
@@ -333,9 +333,7 @@ fired). The last gap, `stacked-queries`, needed a `form_field` injection point t
 hand-written profile lacked — a *recon* blind spot, not a selection bias. **Live recon proves
 this out:** crawling real DVWA discovers 15 injection points (vs 6 profiled), including
 `form_field` endpoints, which lifts coverage to the **full 6/6** — better recon closed the gap
-that better selection alone could not. Documented with before/after numbers in
-[`docs/fairness_evaluation.md`](docs/fairness_evaluation.md) and
-[`docs/risk_assessment.md`](docs/risk_assessment.md). (The baseline *model's* fairness/risk
+that better selection alone could not. (The baseline *model's* fairness/risk
 is separate, inside `models/baseline.ipynb`.)
 
 ---
