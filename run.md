@@ -138,21 +138,26 @@ appendix. The first run is slow (model download + load); later runs are faster.
 
 ---
 
-## 4c. (Optional) The Web UI — live attack console
+## 4c. (Optional) The Web UI — assessment console
 
-A browser UI that runs the whole agent and shows it working in real time: each tool call, the
-confirmed exploits as they're found, and the Layer-7 report **streaming in token-by-token**.
+A browser UI that runs the whole agent and shows it working in real time, styled as a
+stakeholder-facing security dashboard (light/dark): live **KPI cards** (injection points,
+payloads fired, exploits confirmed, audit events, chain integrity), a **7-layer pipeline** with
+the two safety gates (authorization, governance) visibly marked, a **severity-ranked findings
+table**, the **audit ledger** with its chain-verification line, and the Layer-7 report
+**streaming in token-by-token** with an EU AI Act Art. 50 "AI-generated" label.
 
 ```bash
 python webui.py            # serves http://127.0.0.1:7000
 ```
 Open **http://127.0.0.1:7000**, make sure a target is running (the Flask sandbox on `:5000` or
-DVWA on `:8080`), enter its URL, and hit **Attack**. The pipeline animates layer-by-layer, each
-tool call and confirmed exploit appears live, and the Layer-7 report streams in token-by-token.
-The scope firewall still applies — only allowlisted loopback targets are accepted.
+DVWA on `:8080`), enter its URL, and hit **Run Assessment**. The pipeline animates
+layer-by-layer, findings and ledger entries appear live, and the report streams in. An
+out-of-scope target is shown as the scope firewall doing its job — the firewall still applies,
+so only allowlisted loopback targets are accepted.
 
 > The UI **loads the model once at startup** — `python webui.py` prints `LLM ready` after the
-> load (~30s; the first ever run also downloads the model). After that, **every attack streams
+> load (~30s; the first ever run also downloads the model). After that, **every run streams
 > the report instantly**, with no per-attack wait.
 
 ---

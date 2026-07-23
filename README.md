@@ -35,7 +35,7 @@ and accountability around the whole thing.
 | Live sandbox target (`sandbox/target_app.py`) + live crawler | ✅ **done** |
 | Detection oracles: **3 of 6 proven** (`differential`, `browser_execution`, `error_signature`) across Flask + **live DVWA** | ✅ **proven** |
 | **Tests** — single weakness-detection notebook (`unit_test.ipynb`), one key question per layer | ✅ **done** |
-| **Web UI** — live attack console (`webui.py`): streams each tool call, findings, and a token-by-token report | ✅ **done** |
+| **Web UI** — stakeholder-facing assessment console (`webui.py`): live KPI cards, a 7-layer pipeline with safety-gate markers, a severity-ranked findings table, the audit ledger, a token-by-token report, and a compliance strip (light/dark) | ✅ **done** |
 
 This README documents both what exists today and the target design it plugs into.
 
