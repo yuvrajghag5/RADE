@@ -138,127 +138,423 @@ def index():
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Offensive IT-Tester — Attack Console</title>
+<title>RADE — Autonomous Penetration Testing Console</title>
 <style>
-  :root{ --bg:#0b0e14; --panel:#121722; --line:#232b3a; --fg:#c8d3e6; --dim:#7b879c;
-         --green:#3ddc84; --red:#ff5c6c; --amber:#ffb454; --accent:#5ac8fa; }
+  @keyframes rade-spin { to { transform: rotate(360deg); } }
+  @keyframes rade-pulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+  @keyframes rade-blink { 0%,49% { opacity:1; } 50%,100% { opacity:0; } }
+  :root{
+    --bg:#f6f7f9; --bg-elevated:#ffffff; --bg-sunken:#eef0f3;
+    --border:#e3e6ea; --border-strong:#d3d7dd;
+    --text:#1a1d22; --text-secondary:#5c6370; --text-tertiary:#8a919c;
+    --accent:oklch(0.52 0.16 258); --accent-soft:oklch(0.94 0.03 258); --accent-contrast:#ffffff;
+    --safe:oklch(0.55 0.13 165); --safe-soft:oklch(0.95 0.04 165);
+    --danger:oklch(0.58 0.19 25); --danger-soft:oklch(0.95 0.04 25);
+    --warn:oklch(0.75 0.15 75); --warn-soft:oklch(0.95 0.05 75);
+    --neutral:oklch(0.62 0.01 260); --neutral-soft:oklch(0.93 0.005 260);
+    --shadow:0 1px 2px rgba(20,24,32,.04), 0 4px 16px rgba(20,24,32,.06);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f1115; --bg-elevated:#171a20; --bg-sunken:#0b0d10;
+      --border:#262b33; --border-strong:#333a45;
+      --text:#eef0f3; --text-secondary:#a3aab5; --text-tertiary:#6d7480;
+      --accent:oklch(0.72 0.14 258); --accent-soft:oklch(0.28 0.06 258); --accent-contrast:#0f1115;
+      --safe:oklch(0.72 0.11 165); --safe-soft:oklch(0.26 0.05 165);
+      --danger:oklch(0.68 0.17 25); --danger-soft:oklch(0.28 0.07 25);
+      --warn:oklch(0.78 0.13 75); --warn-soft:oklch(0.3 0.06 75);
+      --neutral:oklch(0.65 0.01 260); --neutral-soft:oklch(0.24 0.005 260);
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 20px rgba(0,0,0,.35);
+    }
+  }
+  [data-theme="light"]{
+    --bg:#f6f7f9; --bg-elevated:#ffffff; --bg-sunken:#eef0f3;
+    --border:#e3e6ea; --border-strong:#d3d7dd;
+    --text:#1a1d22; --text-secondary:#5c6370; --text-tertiary:#8a919c;
+    --accent:oklch(0.52 0.16 258); --accent-soft:oklch(0.94 0.03 258); --accent-contrast:#ffffff;
+    --safe:oklch(0.55 0.13 165); --safe-soft:oklch(0.95 0.04 165);
+    --danger:oklch(0.58 0.19 25); --danger-soft:oklch(0.95 0.04 25);
+    --warn:oklch(0.75 0.15 75); --warn-soft:oklch(0.95 0.05 75);
+    --neutral:oklch(0.62 0.01 260); --neutral-soft:oklch(0.93 0.005 260);
+    --shadow:0 1px 2px rgba(20,24,32,.04), 0 4px 16px rgba(20,24,32,.06);
+  }
+  [data-theme="dark"]{
+    --bg:#0f1115; --bg-elevated:#171a20; --bg-sunken:#0b0d10;
+    --border:#262b33; --border-strong:#333a45;
+    --text:#eef0f3; --text-secondary:#a3aab5; --text-tertiary:#6d7480;
+    --accent:oklch(0.72 0.14 258); --accent-soft:oklch(0.28 0.06 258); --accent-contrast:#0f1115;
+    --safe:oklch(0.72 0.11 165); --safe-soft:oklch(0.26 0.05 165);
+    --danger:oklch(0.68 0.17 25); --danger-soft:oklch(0.28 0.07 25);
+    --warn:oklch(0.78 0.13 75); --warn-soft:oklch(0.3 0.06 75);
+    --neutral:oklch(0.65 0.01 260); --neutral-soft:oklch(0.24 0.005 260);
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 4px 20px rgba(0,0,0,.35);
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
-  header h1{font-size:16px;margin:0;letter-spacing:.5px}
-  header .dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
-  header .sub{color:var(--dim);font-size:12px;margin-left:auto}
-  .bar{padding:16px 24px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
-  .bar input{flex:1;background:#0e131d;border:1px solid var(--line);color:var(--fg);padding:10px 12px;border-radius:8px;font:inherit}
-  .bar button{background:var(--green);color:#04180d;border:0;padding:10px 20px;border-radius:8px;font:inherit;font-weight:700;cursor:pointer}
-  .bar button:disabled{opacity:.5;cursor:not-allowed}
-  .hint{color:var(--dim);font-size:12px;padding:0 24px 12px}
-  .wrap{display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.2fr);gap:16px;padding:16px 24px}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .panel h2{margin:0;padding:12px 16px;font-size:12px;letter-spacing:1px;color:var(--dim);border-bottom:1px solid var(--line);text-transform:uppercase}
-  .panel .body{padding:12px 16px;max-height:60vh;overflow:auto}
-  .step{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
-  .step:last-child{border-bottom:0}
-  .ic{width:18px;text-align:center}
-  .spin{display:inline-block;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
-  .step .lbl{font-weight:600}.step .det{color:var(--dim);font-size:12.5px}
-  .ok{color:var(--green)}.bad{color:var(--red)}.run{color:var(--accent)}
-  .prog{height:6px;background:#0e131d;border-radius:4px;margin-top:8px;overflow:hidden}
-  .prog > i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-  .audithead{color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:2px 0 6px}
-  .aline{font-size:12.5px;padding:4px 0;border-bottom:1px dashed var(--line)}
-  .aline .ok{color:var(--green);font-weight:700;margin-right:6px}
-  .aline .dim{color:var(--dim)}
-  .auditsum{margin-top:10px;color:var(--green);font-size:12.5px}
-  #report{white-space:pre-wrap;font-size:13px;color:#dbe6f5}
-  #report .cur{display:inline-block;width:8px;background:var(--green);animation:bl 1s steps(1) infinite}@keyframes bl{50%{opacity:0}}
-  .banner{padding:10px 16px;border-radius:8px;margin:0 24px 16px;display:none}
-  .banner.good{background:rgba(61,220,132,.12);border:1px solid var(--green);color:var(--green)}
-  .banner.err{background:rgba(255,92,108,.12);border:1px solid var(--red);color:var(--red)}
-  .points{color:var(--dim);font-size:12px}
+  body{ margin:0; background:var(--bg); font-family:var(--sans); }
+  ::selection{ background:var(--accent-soft); }
+  .appbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 32px;background:var(--bg-elevated);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .banner{margin:20px 32px 0;padding:16px 20px;border-radius:12px;display:none;gap:14px;align-items:flex-start}
+  .controlbar{padding:20px 32px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .kpis{padding:0 32px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+  .block{padding:0 32px 28px}
+  .card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow)}
+  .steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
+  h2.blocktitle{font:750 15px var(--sans);color:var(--text);margin:0}
+  .blocksub{font:400 12.5px var(--sans);color:var(--text-tertiary);margin:4px 0 12px}
+  .spin{width:11px;height:11px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent);animation:rade-spin .7s linear infinite;display:inline-block;flex:none}
 </style></head>
 <body>
-  <header>
-    <span class="dot"></span><h1>OFFENSIVE IT-TESTER · ATTACK CONSOLE</h1>
-    <span class="sub">LangGraph agent · 7 layers · local LLM</span>
-  </header>
-  <div class="bar">
-    <input id="url" value="http://127.0.0.1:5000" placeholder="target URL (loopback / allowlisted only)">
-    <button id="go">▶ ATTACK</button>
-  </div>
-  <div class="hint">Allowed targets only: the Flask sandbox <code>http://127.0.0.1:5000</code> or DVWA <code>http://127.0.0.1:8080</code>. The scope firewall rejects anything else.</div>
-  <div id="banner" class="banner"></div>
-  <div class="wrap">
-    <div class="panel">
-      <h2>Pipeline · tools called</h2>
-      <div class="body" id="steps"></div>
-    </div>
-    <div class="panel">
-      <h2>Audit &amp; report</h2>
-      <div class="body">
-        <div id="auditlog"></div>
-        <div id="reportwrap" style="display:none">
-          <div style="color:var(--dim);font-size:12px;margin:12px 0 6px">— Layer 7 report (streaming) —</div>
-          <div id="report"></div>
-        </div>
+<div id="app" data-theme="" style="min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--sans);transition:background .2s,color .2s">
+
+  <!-- HEADER -->
+  <header class="appbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="30" height="30" viewBox="0 0 30 30" style="flex:none">
+        <circle cx="15" cy="15" r="13" style="fill:none;stroke:var(--accent);stroke-width:2"></circle>
+        <circle cx="15" cy="15" r="6.5" style="fill:var(--accent)"></circle>
+      </svg>
+      <div>
+        <div style="font:800 19px/1.1 var(--sans);letter-spacing:-0.01em;color:var(--text)">RADE</div>
+        <div style="font:400 12.5px/1.3 var(--sans);color:var(--text-secondary);margin-top:2px">Autonomous penetration testing you can prove and defend</div>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;background:var(--safe-soft);border:1px solid var(--safe)">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--safe);animation:rade-pulse 2s ease-in-out infinite"></span>
+        <span style="font:600 12px var(--sans);color:var(--safe)">Live &amp; secure</span>
+      </div>
+      <button id="theme" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text-secondary);font:600 12px var(--sans);cursor:pointer">Auto</button>
+    </div>
+  </header>
+
+  <!-- HALT BANNER -->
+  <div id="halt-banner" class="banner" style="background:var(--accent-soft);border:1px solid var(--accent)">
+    <svg width="20" height="20" viewBox="0 0 20 20" style="flex:none;margin-top:2px">
+      <circle cx="10" cy="10" r="8.5" style="fill:none;stroke:var(--accent);stroke-width:1.6"></circle>
+      <circle cx="10" cy="10" r="3" style="fill:var(--accent)"></circle>
+    </svg>
+    <div>
+      <div style="font:700 14px var(--sans);color:var(--text)">Request blocked by scope firewall — the guardrail is working</div>
+      <div id="halt-reason" style="font:400 13px/1.5 var(--sans);color:var(--text-secondary);margin-top:4px"></div>
+    </div>
   </div>
+
+  <!-- COMPLETE BANNER -->
+  <div id="complete-banner" class="banner" style="background:var(--safe-soft);border:1px solid var(--safe)">
+    <svg width="20" height="20" viewBox="0 0 20 20" style="flex:none;margin-top:2px">
+      <circle cx="10" cy="10" r="8.5" style="fill:none;stroke:var(--safe);stroke-width:1.6"></circle>
+      <path d="M6 10.2l2.6 2.6 5-5.4" style="fill:none;stroke:var(--safe);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"></path>
+    </svg>
+    <div>
+      <div id="complete-summary" style="font:700 14px var(--sans);color:var(--text)"></div>
+      <div style="font:400 13px/1.5 var(--sans);color:var(--text-secondary);margin-top:4px">What this means: every action taken was inside the authorized target and is recorded in a tamper-evident ledger.</div>
+    </div>
+  </div>
+
+  <!-- CONTROL BAR -->
+  <section class="controlbar">
+    <input id="url" value="http://127.0.0.1:5000" placeholder="http://127.0.0.1:5000" style="flex:1;min-width:260px;padding:12px 14px;border-radius:10px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font:500 13.5px var(--mono);outline:none" />
+    <button id="run" style="padding:12px 22px;border-radius:10px;border:none;background:var(--accent);color:var(--accent-contrast);font:700 13.5px var(--sans);cursor:pointer;white-space:nowrap;box-shadow:var(--shadow)">Run Assessment</button>
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:20px;background:var(--accent-soft);border:1px solid var(--accent)">
+      <svg width="15" height="15" viewBox="0 0 15 15" style="flex:none">
+        <circle cx="7.5" cy="7.5" r="6.4" style="fill:none;stroke:var(--accent);stroke-width:1.4"></circle>
+        <circle cx="7.5" cy="7.5" r="2.6" style="fill:var(--accent)"></circle>
+      </svg>
+      <span style="font:600 12px var(--sans);color:var(--accent)">Protected scope · 127.0.0.1:5000 &amp; :8080 only</span>
+    </div>
+  </section>
+
+  <!-- KPI ROW -->
+  <section id="kpis" class="kpis"></section>
+
+  <!-- PIPELINE -->
+  <section class="block">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+      <h2 class="blocktitle">Assessment pipeline</h2>
+      <span style="font:400 12px var(--sans);color:var(--text-tertiary)">Shielded steps are automated safety gates</span>
+    </div>
+    <div id="steps" class="steps-grid"></div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section class="block">
+    <h2 class="blocktitle">Confirmed vulnerabilities</h2>
+    <div class="blocksub">Only exploits that were actually proven to fire are listed here — everything else stays "unconfirmed".</div>
+    <div id="findings"></div>
+  </section>
+
+  <!-- AUDIT LEDGER -->
+  <section class="block">
+    <h2 class="blocktitle">Audit ledger</h2>
+    <div class="blocksub">What this means: every action is written to a hash-chained record and verified at the end — nothing can be silently altered.</div>
+    <div id="ledger"></div>
+  </section>
+
+  <!-- REPORT -->
+  <section class="block">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <h2 class="blocktitle">AI-generated assessment report</h2>
+      <span style="font:700 10px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary);background:var(--bg-sunken);border:1px solid var(--border);padding:3px 8px;border-radius:6px">EU AI Act Art. 50 · AI-generated</span>
+    </div>
+    <div id="report-scroll" class="card" style="padding:22px 26px;max-height:340px;overflow-y:auto">
+      <div id="report-empty" style="font:400 13px var(--sans);color:var(--text-tertiary)">The report streams here once the agent completes execution and detection.</div>
+      <div id="report-content" style="display:none;font:400 14.5px/1.7 var(--sans);color:var(--text);white-space:pre-wrap"><span id="report-text"></span><span id="report-cursor" style="display:none;width:2px;height:16px;background:var(--accent);vertical-align:-3px;animation:rade-blink 1s step-end infinite"></span></div>
+    </div>
+  </section>
+
+  <!-- TRUST / COMPLIANCE STRIP -->
+  <section class="block" style="padding-bottom:36px">
+    <div style="font:600 11.5px var(--sans);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Designed for compliance with</div>
+    <div id="compliance" style="display:flex;flex-wrap:wrap;gap:9px"></div>
+  </section>
+
+</div>
+
 <script>
-const $=s=>document.querySelector(s);
-const steps=$("#steps"), auditlog=$("#auditlog"), report=$("#report"), banner=$("#banner");
-let es=null, cursor=null;
+const $=s=>document.getElementById(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-function ensureAuditHead(){ if(!document.getElementById("ahead")){
-  const h=document.createElement("div"); h.id="ahead"; h.className="audithead";
-  h.textContent="audit ledger — confirmed exploits"; auditlog.appendChild(h); } }
+const STEP_DEFS=[
+  {name:"authorize", tag:"L1",   label:"Authorization",         gate:true},
+  {name:"recon",     tag:"L2",   label:"Recon",                 gate:false},
+  {name:"select",    tag:"L3",   label:"Selection",             gate:false},
+  {name:"govern",    tag:"L4",   label:"Governance",            gate:true},
+  {name:"execute",   tag:"L5–6", label:"Execution + Detection", gate:false},
+  {name:"report",    tag:"L7",   label:"Report",                gate:false},
+];
+const COMPLIANCE=["EU AI Act","GDPR","StGB §202","OWASP Top 10","ISO/IEC 42001","NIST AI RMF"];
 
-function stepEl(name){ let e=document.getElementById("st-"+name);
-  if(!e){ e=document.createElement("div"); e.className="step"; e.id="st-"+name;
-    e.innerHTML='<span class="ic"><span class="spin run">◍</span></span><div><div class="lbl"></div><div class="det"></div></div>';
-    steps.appendChild(e);} return e; }
+function freshSteps(){ const s={}; STEP_DEFS.forEach(d=>s[d.name]={status:"pending",detail:""}); return s; }
 
-function handle(d){
-  if(d.type==="start"){ steps.innerHTML=""; auditlog.innerHTML=""; report.textContent="";
-    $("#reportwrap").style.display="none"; banner.style.display="none"; }
-  else if(d.type==="step"){ const e=stepEl(d.name); e.querySelector(".lbl").textContent=d.label;
-    e.querySelector(".ic").innerHTML='<span class="spin run">◍</span>'; }
-  else if(d.type==="stepdone"){ const e=stepEl(d.name);
-    e.querySelector(".ic").innerHTML = d.ok?'<span class="ok">✓</span>':'<span class="bad">✗</span>';
-    e.querySelector(".det").textContent=d.detail||""; }
-  else if(d.type==="points"){ const e=stepEl("recon"); const p=document.createElement("div");
-    p.className="points"; p.textContent=d.points.map(x=>x.name+" ("+x.method+" "+x.param+")").join("  ·  ");
-    e.appendChild(p); }
-  else if(d.type==="progress"){ let e=stepEl("execute"); let bar=e.querySelector(".prog");
-    if(!bar){ bar=document.createElement("div"); bar.className="prog"; bar.innerHTML="<i></i>"; e.appendChild(bar);}
-    bar.querySelector("i").style.width=(100*d.i/d.n)+"%";
-    e.querySelector(".det").textContent="firing "+d.i+"/"+d.n+" · "+d.confirmed+" confirmed"; }
-  else if(d.type==="finding"){ ensureAuditHead();
-    const l=document.createElement("div"); l.className="aline";
-    l.innerHTML='<span class="ok">CONFIRMED</span>'+d.attack_class+'/'+d.ptype+
-      '<span class="dim"> — at '+d.point+' · '+d.oracle+' · '+d.confidence+'</span>';
-    auditlog.appendChild(l); }
-  else if(d.type==="report"){ $("#reportwrap").style.display="block";
-    if(cursor) cursor.remove(); report.append(d.text.replace(/[#*\x60]/g,""));  // strip markdown chars
-    cursor=document.createElement("span"); cursor.className="cur"; cursor.textContent=" ";
-    report.appendChild(cursor); report.parentElement.parentElement.scrollTop=1e9; }
-  else if(d.type==="halt"){ banner.className="banner err"; banner.style.display="block";
-    banner.textContent="⛔ "+d.reason; done(); }
-  else if(d.type==="complete"){ if(cursor) cursor.remove();
-    const s=document.createElement("div"); s.className="auditsum";
-    s.textContent="✓ audit ledger: "+d.events+" events · "+(d.chain_ok?"chain intact":"chain BROKEN");
-    auditlog.appendChild(s);
-    banner.className="banner good"; banner.style.display="block";
-    banner.textContent="✔ Done — "+d.confirmed+" exploit(s) confirmed of "+d.fired+" fired (recorded in the audit)."; done(); }
-}
-function done(){ if(es){es.close();es=null;} $("#go").disabled=false; $("#go").textContent="▶ ATTACK"; }
-$("#go").onclick=()=>{ const url=$("#url").value.trim(); if(!url) return;
-  $("#go").disabled=true; $("#go").textContent="… running";
-  es=new EventSource("/attack?target="+encodeURIComponent(url));
-  es.onmessage=e=>handle(JSON.parse(e.data));
-  es.onerror=()=>{ if(es){done();} };
+const state={
+  theme:"auto", target:"http://127.0.0.1:5000", running:false,
+  steps:freshSteps(), points:[], progress:{i:0,n:0,confirmed:0},
+  findings:[], reportText:"", halted:null, complete:null,
 };
-$("#url").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#go").click(); });
+let es=null;
+
+/* ---------- theme ---------- */
+function applyTheme(){
+  $("app").dataset.theme = state.theme==="auto" ? "" : state.theme;
+  $("theme").textContent = state.theme==="auto" ? "Auto" : (state.theme==="light"?"Light":"Dark");
+}
+function cycleTheme(){ state.theme = state.theme==="auto"?"light":(state.theme==="light"?"dark":"auto"); applyTheme(); }
+
+/* ---------- renderers ---------- */
+function renderControls(){
+  const b=$("run");
+  b.disabled=state.running;
+  b.textContent=state.running?"Running…":"Run Assessment";
+  b.style.background=state.running?"var(--neutral)":"var(--accent)";
+  b.style.cursor=state.running?"not-allowed":"pointer";
+}
+
+function renderBanners(){
+  const h=$("halt-banner"), c=$("complete-banner");
+  h.style.display = state.halted ? "flex" : "none";
+  if(state.halted) $("halt-reason").textContent=state.halted;
+  c.style.display = state.complete ? "flex" : "none";
+  if(state.complete){
+    const d=state.complete;
+    $("complete-summary").textContent =
+      "Assessment complete — "+d.confirmed+" confirmed of "+d.fired+" tested, audit chain "+(d.chain_ok?"intact":"broken")+".";
+  }
+}
+
+function renderKpis(){
+  const s=state, dash="—";
+  const hasStarted = s.running || !!s.complete || !!s.halted || s.points.length>0;
+  const pointsVal = hasStarted ? String(s.points.length) : dash;
+  let firedVal=dash;
+  if(s.complete) firedVal=String(s.complete.fired);
+  else if(s.progress.n) firedVal=s.progress.i+"/"+s.progress.n;
+  else if(hasStarted) firedVal="0";
+  const confirmedVal = s.complete ? String(s.complete.confirmed) : (hasStarted ? String(s.findings.length) : dash);
+  const eventsVal = s.complete ? String(s.complete.events) : dash;
+  const chainVal = s.complete ? (s.complete.chain_ok?"Intact":"Broken") : dash;
+  const chainColor = s.complete ? (s.complete.chain_ok?"var(--safe)":"var(--danger)") : "var(--text)";
+  const kpis=[
+    {label:"Injection points found", value:pointsVal,     color:"var(--text)"},
+    {label:"Payloads fired",         value:firedVal,      color:"var(--text)"},
+    {label:"Exploits confirmed",     value:confirmedVal,  color:(hasStarted&&s.findings.length>0)?"var(--danger)":"var(--text)"},
+    {label:"Audit events",           value:eventsVal,     color:"var(--text)"},
+    {label:"Chain integrity",        value:chainVal,      color:chainColor},
+  ];
+  $("kpis").innerHTML = kpis.map(k=>
+    '<div class="card" style="padding:16px 18px">'+
+      '<div style="font:600 11.5px var(--sans);color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em">'+esc(k.label)+'</div>'+
+      '<div style="font:750 26px var(--sans);color:'+k.color+';margin-top:6px;letter-spacing:-0.01em">'+esc(k.value)+'</div>'+
+    '</div>').join("");
+}
+
+const STATUS_META={
+  pending:{label:"Pending",                     color:"var(--text-tertiary)"},
+  running:{label:"Running",                     color:"var(--accent)"},
+  passed: {label:"Passed",                      color:"var(--safe)"},
+  blocked:{label:"Blocked — guardrail active",  color:"var(--accent)"},
+};
+
+function renderSteps(){
+  $("steps").innerHTML = STEP_DEFS.map(d=>{
+    const st=state.steps[d.name]||{status:"pending",detail:""};
+    const meta=STATUS_META[st.status];
+    const detail = st.detail || (st.status==="pending" ? "Waiting for this step to begin." : "");
+    const border = st.status==="blocked" ? "var(--accent)" : (d.gate ? "var(--border-strong)" : "var(--border)");
+    const badgeBg = st.status==="passed" ? "var(--safe-soft)" : ((st.status==="blocked"||st.status==="running") ? "var(--accent-soft)" : "var(--bg-sunken)");
+    const badgeCol= st.status==="passed" ? "var(--safe)" : ((st.status==="blocked"||st.status==="running") ? "var(--accent)" : "var(--text-tertiary)");
+    return '<div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px;border-color:'+border+'">'+
+      (d.gate ? '<div style="align-self:flex-start;font:700 9.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:3px 7px;border-radius:6px;white-space:nowrap">Safety gate</div>' : '')+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:34px;height:34px;border-radius:50%;background:'+badgeBg+';color:'+badgeCol+';display:flex;align-items:center;justify-content:center;font:750 11px var(--mono);flex:none">'+esc(d.tag)+'</div>'+
+        '<div style="min-width:0">'+
+          '<div style="font:700 13.5px var(--sans);color:var(--text);overflow-wrap:break-word">'+esc(d.label)+'</div>'+
+          '<div style="display:flex;align-items:center;gap:5px;margin-top:2px">'+
+            (st.status==="running" ? '<span class="spin"></span>' : '')+
+            '<span style="font:600 11.5px var(--sans);color:'+meta.color+'">'+esc(meta.label)+'</span>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font:400 12px/1.5 var(--sans);color:var(--text-secondary);min-height:18px">'+esc(detail)+'</div>'+
+    '</div>';
+  }).join("");
+}
+
+const SEV_META={
+  high:  {label:"High",   bg:"var(--danger-soft)",  color:"var(--danger)"},
+  medium:{label:"Medium", bg:"var(--warn-soft)",    color:"var(--warn)"},
+  low:   {label:"Low",    bg:"var(--neutral-soft)", color:"var(--neutral)"},
+  none:  {label:"Low",    bg:"var(--neutral-soft)", color:"var(--neutral)"},
+};
+
+function renderFindings(){
+  const f=state.findings;
+  let inner;
+  if(f.length){
+    const head='<div style="display:grid;grid-template-columns:100px 1fr 1fr 1.4fr;gap:10px;padding:10px 18px;background:var(--bg-sunken);font:700 10.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary)">'+
+      '<div>Severity</div><div>Attack class</div><div>Location</div><div>Verified by</div></div>';
+    const rows=f.map(x=>{
+      const m=SEV_META[x.confidence]||SEV_META.low;
+      return '<div style="display:grid;grid-template-columns:100px 1fr 1fr 1.4fr;gap:10px;padding:12px 18px;border-top:1px solid var(--border);align-items:center">'+
+        '<div><span style="font:700 11px var(--sans);padding:4px 9px;border-radius:20px;background:'+m.bg+';color:'+m.color+'">'+m.label+'</span></div>'+
+        '<div style="font:600 13px var(--mono);color:var(--text)">'+esc(x.attack_class)+'</div>'+
+        '<div style="font:400 12.5px var(--mono);color:var(--text-secondary)">'+esc(x.point)+'</div>'+
+        '<div style="font:400 12.5px var(--sans);color:var(--text-secondary)">Verified by: '+esc(x.oracle)+'</div>'+
+      '</div>';
+    }).join("");
+    inner=head+rows;
+  } else {
+    inner='<div style="padding:28px 18px;text-align:center;font:500 13px var(--sans);color:var(--text-tertiary)">No confirmed exploits yet</div>';
+  }
+  $("findings").innerHTML='<div class="card" style="overflow:hidden">'+inner+'</div>';
+}
+
+function renderLedger(){
+  const f=state.findings;
+  let lines;
+  if(f.length){
+    lines=f.map(x=>
+      '<div style="display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border);font:400 12.5px var(--mono);color:var(--text-secondary)">'+
+        '<span style="width:6px;height:6px;border-radius:50%;background:var(--safe);flex:none"></span>'+
+        '<span style="color:var(--text)">'+esc(x.attack_class)+'</span><span>·</span>'+
+        '<span>'+esc(x.point)+'</span><span>·</span>'+
+        '<span>confidence: '+esc(x.confidence)+'</span>'+
+      '</div>').join("");
+  } else {
+    lines='<div style="padding:20px 18px;font:400 12.5px var(--mono);color:var(--text-tertiary)">No ledger entries recorded yet</div>';
+  }
+  const c=state.complete;
+  const chainCol = c ? (c.chain_ok?"var(--safe)":"var(--danger)") : "var(--text)";
+  const chainLine = c ? c.chain_msg : "Audit chain will be verified once the assessment completes.";
+  const footer='<div style="padding:13px 18px;background:var(--bg-sunken);display:flex;align-items:center;gap:9px">'+
+    '<svg width="14" height="14" viewBox="0 0 14 14" style="flex:none">'+
+      '<circle cx="7" cy="7" r="6" style="fill:none;stroke:'+chainCol+';stroke-width:1.4"></circle>'+
+      '<path d="M4.2 7.2l1.8 1.8 3.6-3.9" style="fill:none;stroke:'+chainCol+';stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"></path>'+
+    '</svg>'+
+    '<span style="font:600 12.5px var(--sans);color:'+chainCol+'">'+esc(chainLine)+'</span></div>';
+  $("ledger").innerHTML='<div class="card" style="overflow:hidden">'+lines+footer+'</div>';
+}
+
+function renderAll(){ renderControls(); renderBanners(); renderKpis(); renderSteps(); renderFindings(); renderLedger(); }
+
+/* ---------- report (incremental) ---------- */
+function stripMarkdown(t){ return String(t).replace(/[#*\x60]/g,""); }
+function clearReport(){
+  state.reportText="";
+  $("report-text").textContent="";
+  $("report-content").style.display="none";
+  $("report-empty").style.display="block";
+  $("report-cursor").style.display="none";
+}
+function appendReport(t){
+  const clean=stripMarkdown(t);
+  state.reportText+=clean;
+  $("report-empty").style.display="none";
+  $("report-content").style.display="block";
+  $("report-text").textContent+=clean;
+  if(state.running) $("report-cursor").style.display="inline-block";
+  const sc=$("report-scroll"); sc.scrollTop=sc.scrollHeight;
+}
+
+/* ---------- event stream ---------- */
+function closeES(){ if(es){ es.close(); es=null; } }
+
+function resetRun(target){
+  state.steps=freshSteps(); state.points=[]; state.progress={i:0,n:0,confirmed:0};
+  state.findings=[]; state.reportText=""; state.halted=null; state.complete=null;
+  if(target){ state.target=target; $("url").value=target; }
+  clearReport(); renderAll();
+}
+
+function handleEvent(d){
+  switch(d.type){
+    case "start": resetRun(d.target); break;
+    case "step":
+      state.steps[d.name]={status:"running", detail:(state.steps[d.name]&&state.steps[d.name].detail)||""};
+      renderAll(); break;
+    case "stepdone":
+      state.steps[d.name]={status:d.ok?"passed":"blocked", detail:d.detail||""};
+      renderAll(); break;
+    case "points": state.points=d.points||[]; renderAll(); break;
+    case "progress": state.progress={i:d.i,n:d.n,confirmed:d.confirmed}; renderAll(); break;
+    case "finding":
+      state.findings.push({attack_class:d.attack_class, ptype:d.ptype, point:d.point, oracle:d.oracle, confidence:d.confidence});
+      renderAll(); break;
+    case "report": appendReport(d.text||""); break;
+    case "halt":
+      state.halted=d.reason; state.running=false; closeES();
+      $("report-cursor").style.display="none"; renderAll(); break;
+    case "complete":
+      state.complete=d; state.running=false; closeES();
+      $("report-cursor").style.display="none"; renderAll(); break;
+  }
+}
+
+function run(){
+  if(state.running) return;
+  const url=$("url").value.trim(); if(!url) return;
+  closeES();
+  state.steps=freshSteps(); state.points=[]; state.progress={i:0,n:0,confirmed:0};
+  state.findings=[]; state.halted=null; state.complete=null; state.running=true;
+  clearReport(); renderAll();
+  try{
+    es=new EventSource("/attack?target="+encodeURIComponent(url));
+    es.onmessage=e=>{ try{ handleEvent(JSON.parse(e.data)); }catch(err){} };
+    es.onerror=()=>{ state.running=false; closeES(); renderAll(); };
+  }catch(err){ state.running=false; renderAll(); }
+}
+
+/* ---------- init ---------- */
+$("theme").onclick=cycleTheme;
+$("run").onclick=run;
+$("url").addEventListener("input", e=>{ state.target=e.target.value; });
+$("url").addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
+$("compliance").innerHTML = COMPLIANCE.map(b=>
+  '<span style="font:600 12px var(--sans);color:var(--text-secondary);background:var(--bg-elevated);border:1px solid var(--border);padding:7px 13px;border-radius:20px">'+esc(b)+'</span>').join("");
+applyTheme();
+clearReport();
+renderAll();
 </script>
 </body></html>"""
 
